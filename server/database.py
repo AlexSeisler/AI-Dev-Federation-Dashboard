@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from server.config import settings
 
 # SQLAlchemy engine
-engine = create_engine(settings.DB_URL, future=True, echo=True)
+engine = create_engine(settings.database_url, future=True, echo=True)
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
