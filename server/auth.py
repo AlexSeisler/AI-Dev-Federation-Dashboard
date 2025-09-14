@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
+from datetime import datetime
 
 from server import database, models
 from server.jwt_utils import create_access_token, decode_access_token
@@ -43,6 +44,12 @@ def require_admin(user: models.User = Depends(get_current_user)):
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
+
+
+def log_action(db: Session, user_id: int, action: str):
+    log = models.AuditLog(user_id=user_id, action=action, timestamp=datetime.utcnow())
+    db.add(log)
+    db.commit()
 
 
 # -------- Endpoints --------
@@ -90,6 +97,9 @@ def login(user: UserLogin, db: Session = Depends(database.get_db)):
     token_data = {"sub": db_user.email, "role": db_user.role}
     access_token = create_access_token(token_data)
 
+    # Log login
+    log_action(db, db_user.id, "login")
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -121,5 +131,8 @@ def approve_user(
     user.status = "approved"
     db.commit()
     db.refresh(user)
+
+    # Log approval
+    log_action(db, admin_user.id, f"approved user {user.email}")
 
     return {"message": f"User {user.email} approved", "id": user.id}
