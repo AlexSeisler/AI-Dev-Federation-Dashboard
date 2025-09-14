@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -17,9 +21,10 @@ if config.config_file_name is not None:
 # ✅ set Alembic to use SQLAlchemy models' metadata
 target_metadata = Base.metadata
 
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
-    url = settings.DB_URL  # ✅ pull from config instead of alembic.ini
+    url = settings.database_url  # ✅ fixed to match config.py
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -35,7 +40,7 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     connectable = engine_from_config(
         {
-            "sqlalchemy.url": settings.DB_URL  # ✅ override alembic.ini
+            "sqlalchemy.url": settings.database_url  # ✅ fixed to match config.py
         },
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,

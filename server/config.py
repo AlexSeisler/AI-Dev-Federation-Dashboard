@@ -1,11 +1,19 @@
 import os
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    DB_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/db")
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "supersecret")
-    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    # Database URL (default fallback points to local Postgres)
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql://user:password@localhost:5432/db"
+    )
+
+    # JWT secret for signing tokens
+    jwt_secret: str = os.getenv("JWT_SECRET", "supersecret")
+
+    # GitHub token for read-only API access
+    github_token: str = os.getenv("GITHUB_TOKEN", "")
 
     class Config:
         env_file = ".env"
