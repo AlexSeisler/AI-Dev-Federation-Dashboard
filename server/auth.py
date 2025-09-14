@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 
 from server import database, models
-from server.jwt_utils import create_access_token
+from server.jwt_utils import create_access_token, decode_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# OAuth2 token scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
 # -------- Schemas --------
@@ -21,6 +25,24 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+# -------- Helpers --------
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    user = db.query(models.User).filter(models.User.email == payload.get("sub")).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+def require_admin(user: models.User = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
 
 
 # -------- Endpoints --------
@@ -55,20 +77,16 @@ def signup(user: UserSignup, db: Session = Depends(database.get_db)):
 
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(database.get_db)):
-    # Look up user
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    # Verify password
     if not pwd_context.verify(user.password, db_user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    # Ensure user is approved
     if db_user.status != "approved":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not approved")
 
-    # Generate JWT
     token_data = {"sub": db_user.email, "role": db_user.role}
     access_token = create_access_token(token_data)
 
@@ -77,3 +95,31 @@ def login(user: UserLogin, db: Session = Depends(database.get_db)):
         "token_type": "bearer",
         "role": db_user.role,
     }
+
+
+@router.get("/me")
+def me(current_user: models.User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role,
+        "status": current_user.status,
+        "created_at": current_user.created_at,
+    }
+
+
+@router.post("/approve/{user_id}")
+def approve_user(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    admin_user: models.User = Depends(require_admin)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.status = "approved"
+    db.commit()
+    db.refresh(user)
+
+    return {"message": f"User {user.email} approved", "id": user.id}
