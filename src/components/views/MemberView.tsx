@@ -66,6 +66,7 @@ export const MemberView: React.FC = () => {
                       <h3 className="font-semibold text-white mb-2">{feature.name}</h3>
                       <p className="text-slate-400 text-sm">{feature.description}</p>
                     </div>
+                    </div>
                   ))}
                 </div>
 
