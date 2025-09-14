@@ -2,12 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Bot, ChevronDown, Play, Terminal, FileText, Package } from 'lucide-react';
 
 const taskPresets = [
-  'Analyze file structure',
-  'Find dead code',
-  'Propose logging improvements',
-  'Add README badges',
-  'Security audit',
-  'Performance optimization'
+  'Alignment/Plan',
+  'Analyze Codebase Structure',
+  'Analyze File',
 ];
 
 const mockLogEntries = [
