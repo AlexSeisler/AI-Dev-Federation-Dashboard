@@ -1,149 +1,155 @@
-import asyncio
-import threading
-from fastapi import APIRouter, Depends, HTTPException
-from sse_starlette.sse import EventSourceResponse
-from sqlalchemy.orm import Session
-from typing import Dict, Any
-from datetime import datetime
+# server/tasks.py
 
-from . import models, hf_client
-from .database import get_db, SessionLocal
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from datetime import datetime
+import asyncio
+import json
+import traceback
+
+from server.database import get_db
+from server.models import Task, UserLog, Memory
+from server.github_service import GitHubService
+from server.hf_client import run_completion
+from server.jwt_utils import get_current_user
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
+# Initialize GitHub service (read-only)
+github_service = GitHubService()
 
-async def event_generator(task_id: int, db: Session):
-    last_seen = set()
+# --- Runner Task Execution --- #
+
+async def stream_logs(log_queue: asyncio.Queue):
+    """Helper to stream logs via SSE."""
     while True:
-        await asyncio.sleep(1)
-        task = db.query(models.Task).filter(models.Task.id == task_id).first()
-        if not task:
-            yield {"event": "error", "data": f"❌ Task {task_id} not found."}
-            return
+        message = await log_queue.get()
+        if message is None:  # end of stream
+            break
+        yield f"data: {json.dumps(message)}\n\n"
 
-        logs = db.query(models.UserLog).filter(models.UserLog.task_id == task_id).all()
-        for log in logs:
-            if log.id not in last_seen:
-                yield {"event": "log", "data": log.response}
-                last_seen.add(log.id)
+def log_event(db: Session, task: Task, event: str, log_queue: asyncio.Queue):
+    """Persist and stream log events."""
+    log_entry = UserLog(task_id=task.id, event=event, timestamp=datetime.utcnow())
+    db.add(log_entry)
+    db.commit()
+    db.refresh(log_entry)
 
-        if task.status in ["completed", "failed"]:
-            yield {"event": "end", "data": f"Task {task_id} {task.status}."}
-            return
+    asyncio.create_task(log_queue.put({"event": event, "timestamp": log_entry.timestamp.isoformat()}))
 
-
-def run_hf_task(task_id: int, preset: str, context: str):
-    """
-    Background runner for Hugging Face completions with memory + logging.
-    """
-    print(f"⚡ Runner started for task {task_id} (preset={preset})")
-    db = SessionLocal()
+async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_id: int, log_queue: asyncio.Queue):
+    """Main runner logic with repo context + Hugging Face integration."""
     try:
-        task = db.query(models.Task).filter(models.Task.id == task_id).first()
-        if not task:
-            print(f"❌ Task {task_id} not found in DB")
-            return
-
         task.status = "running"
-        db.add(models.UserLog(task_id=task.id, response="🚀 Task started"))
         db.commit()
 
-        # 🔎 Pull last 5 messages from memory for this user
-        memory_entries = (
-            db.query(models.Memory)
-            .filter(models.Memory.user_id == task.user_id)
-            .order_by(models.Memory.created_at.desc())
-            .limit(5)
-            .all()
-        )
-        memory = [{"role": m.role, "content": m.content} for m in reversed(memory_entries)]
+        # --- Repo Context Fetching --- #
+        repo_context = ""
+        if preset == "structure":
+            log_event(db, task, "📂 Fetching repo tree...", log_queue)
+            tree = github_service.get_repo_tree()
+            repo_context += f"Repo Tree:\n{json.dumps(tree, indent=2)}\n"
 
-        # Call Hugging Face with preset + context + memory
-        try:
-            db.add(models.UserLog(task_id=task.id, response="📡 Sending request to Hugging Face..."))
-            db.commit()
+            log_event(db, task, "📂 Analyzing file structure...", log_queue)
+            # For demo, parse App.tsx as an example
+            code = github_service.get_file("src/App.tsx")
+            structure = github_service.parse_file_structure(code)
+            repo_context += f"File Structure (App.tsx):\n{json.dumps(structure, indent=2)}\n"
 
-            result = hf_client.run_completion(preset, context, memory)
-            content = result["content"]
+        elif preset == "file":
+            log_event(db, task, "📂 Fetching example file...", log_queue)
+            code = github_service.get_file("src/App.tsx")
+            repo_context += f"File: src/App.tsx\n\n{code[:1000]}...\n"  # cap at 1k chars
 
-            db.add(models.UserLog(task_id=task.id, response=f"✅ HF Response: {content[:200]}..."))
+            log_event(db, task, "📂 Parsing file structure...", log_queue)
+            structure = github_service.parse_file_structure(code)
+            repo_context += f"File Structure:\n{json.dumps(structure, indent=2)}\n"
 
-            # Save response to memory for continuity
-            db.add(
-                models.Memory(
-                    user_id=task.user_id,
-                    role="assistant",
-                    content=content,
-                    created_at=datetime.utcnow(),
-                )
-            )
+        elif preset == "brainstorm":
+            log_event(db, task, "📂 Fetching repo tree for brainstorm...", log_queue)
+            tree = github_service.get_repo_tree()
+            repo_context += f"Repo Tree:\n{json.dumps(tree, indent=2)}\n"
 
-            task.status = "completed"
-
-        except Exception as e:
-            error_msg = f"❌ HF call failed: {str(e)}"
-            print(error_msg)
-            db.add(models.UserLog(task_id=task.id, response=error_msg))
-            task.status = "failed"
-
+        # Persist repo context in task
+        task.context = repo_context
         db.commit()
-        print(f"🏁 Task {task.id} finished with status={task.status}")
 
-    except Exception as outer_e:
-        print(f"❌ Runner crashed: {outer_e}")
-        db.add(models.UserLog(task_id=task_id, response=f"❌ Runner crashed: {outer_e}"))
-        task = db.query(models.Task).filter(models.Task.id == task_id).first()
-        if task:
-            task.status = "failed"
+        # --- Hugging Face Call --- #
+        log_event(db, task, "📡 Sending request to Hugging Face...", log_queue)
+
+        # Load memory
+        memory_entries = db.query(Memory).filter(Memory.user_id == user_id).order_by(Memory.created_at.desc()).limit(5).all()
+        memory_context = "\n".join([m.response for m in memory_entries if m.response])
+
+        response_text = run_completion(preset, context, memory_context, repo_context)
+
+        # Persist to memory
+        memory_entry = Memory(user_id=user_id, response=response_text, created_at=datetime.utcnow())
+        db.add(memory_entry)
+        db.commit()
+
+        # Final log
+        log_event(db, task, f"✅ HF Response: {response_text[:200]}...", log_queue)
+
+        task.status = "completed"
+        db.commit()
+
+    except Exception as e:
+        error_detail = f"Task failed: {type(e).__name__} - {e}"
+        traceback.print_exc()
+        log_event(db, task, f"❌ {error_detail}", log_queue)
+        task.status = "failed"
         db.commit()
 
     finally:
-        db.close()
+        await log_queue.put(None)  # end SSE stream
 
+# --- API Routes --- #
 
 @router.post("/run/{preset}")
-async def run_task(
-    preset: str,
-    payload: Dict[str, Any],
-    db: Session = Depends(get_db),
-):
-    if preset not in ["structure", "file", "brainstorm"]:
-        raise HTTPException(status_code=400, detail=f"❌ Invalid preset: {preset}")
+async def run_task(preset: str, context: str = "", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Start a new runner task."""
+    user_id = current_user["id"]
 
-    user_id = payload.get("user_id")
-    context = payload.get("context", "")
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="❌ Missing user_id.")
-
-    task = models.Task(user_id=user_id, type=preset, context=context, status="pending")
+    # Create DB task
+    task = Task(user_id=user_id, type=preset, status="pending", created_at=datetime.utcnow(), context=context)
     db.add(task)
     db.commit()
     db.refresh(task)
 
-    print(f"🚀 Created task {task.id}, launching runner thread...")
-    threading.Thread(target=run_hf_task, args=(task.id, preset, context), daemon=True).start()
+    log_queue = asyncio.Queue()
+    asyncio.create_task(run_hf_task(task, preset, context, db, user_id, log_queue))
 
-    return {"task_id": task.id, "status": task.status}
-
+    return {"task_id": task.id, "status": "started"}
 
 @router.get("/{task_id}/stream")
-async def stream_task(task_id: int, db: Session = Depends(get_db)):
-    return EventSourceResponse(event_generator(task_id, db))
+async def stream_task(task_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Stream logs for a running task."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
 
+    log_queue = asyncio.Queue()
+    # Replay existing logs
+    existing_logs = db.query(UserLog).filter(UserLog.task_id == task_id).all()
+    for log in existing_logs:
+        await log_queue.put({"event": log.event, "timestamp": log.timestamp.isoformat()})
+
+    return StreamingResponse(stream_logs(log_queue), media_type="text/event-stream")
 
 @router.get("/{task_id}")
-def get_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+def get_task(task_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Fetch task details + logs."""
+    task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
-        raise HTTPException(status_code=404, detail="❌ Task not found.")
+        raise HTTPException(status_code=404, detail="Task not found")
 
-    logs = db.query(models.UserLog).filter(models.UserLog.task_id == task_id).all()
-    responses = [log.response for log in logs if log.response]
-
+    logs = db.query(UserLog).filter(UserLog.task_id == task_id).all()
     return {
         "id": task.id,
         "type": task.type,
         "status": task.status,
-        "logs": responses,
+        "context": task.context,
+        "logs": [{"event": log.event, "timestamp": log.timestamp.isoformat()} for log in logs]
     }

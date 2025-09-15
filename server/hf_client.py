@@ -16,7 +16,7 @@ if not HF_API_KEY:
 API_URL = "https://router.huggingface.co/v1/chat/completions"
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 
-# System prompts for presets
+# System presets for different task modes
 SYSTEM_PRESETS = {
     "structure": "You are DevBot. Summarize repo structure, describe key files/classes, and suggest improvements.",
     "file": "You are DevBot. Review this file, identify purpose, risks, inefficiencies, and improvements.",
@@ -25,9 +25,7 @@ SYSTEM_PRESETS = {
 
 
 def _query_hf(payload: Dict[str, Any], retries: int = 3, backoff: int = 2, timeout: int = 60) -> Dict[str, Any]:
-    """
-    Low-level request helper with retry + exponential backoff + timeout.
-    """
+    """Low-level request helper with retry + exponential backoff + timeout."""
     for attempt in range(retries):
         try:
             print(f"📡 HF API attempt {attempt+1}/{retries} with model={payload.get('model')}")
@@ -62,6 +60,7 @@ def run_completion(
     preset: str,
     context: str,
     memory: Optional[List[Dict[str, str]]] = None,
+    repo_context: Optional[str] = None,
     max_tokens: int = 1024,
 ) -> Dict[str, Any]:
     """
@@ -69,9 +68,10 @@ def run_completion(
 
     Args:
         preset: One of 'structure', 'file', 'brainstorm'.
-        context: Repo/file text context.
-        memory: Optional conversation memory [{"role": "user"/"assistant", "content": "..."}].
-        max_tokens: Output token cap (default=1024, can raise to 2048).
+        context: Recruiter-provided context or instructions.
+        memory: Optional conversation memory [{role, content}].
+        repo_context: Extra repo-aware context (tree, file, structures).
+        max_tokens: Output token cap.
 
     Returns:
         dict with structured fields:
@@ -85,8 +85,12 @@ def run_completion(
 
     messages = [
         {"role": "system", "content": SYSTEM_PRESETS[preset]},
-        {"role": "user", "content": context},
     ]
+
+    if repo_context:
+        messages.append({"role": "system", "content": f"Repo Context:\n{repo_context}"})
+
+    messages.append({"role": "user", "content": context})
 
     # Add prior memory if present
     if memory:
