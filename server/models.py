@@ -39,6 +39,7 @@ class Task(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     type = Column(String, nullable=False)  # structure, file, brainstorm
     status = Column(String, default="pending")  # pending, running, completed, failed
+    context = Column(Text, nullable=True)  # <-- NEW: repo/file text context
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="tasks")
@@ -63,7 +64,7 @@ class UserLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    response = Column(Text, nullable=False)
+    response = Column(Text, nullable=False)  # <-- already upgraded to Text
 
     task = relationship("Task", back_populates="user_logs")
 
@@ -73,7 +74,11 @@ class Memory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    data = Column(JSONB, nullable=False)
-    queue_num = Column(Integer, nullable=False)
+    role = Column(String, nullable=False)       # <-- NEW: role (user/assistant)
+    content = Column(Text, nullable=False)      # <-- NEW: content text
+    created_at = Column(DateTime, default=datetime.utcnow)  # <-- NEW timestamp
+
+    # Old fields (data, queue_num) dropped in favor of role/content
+    # because tasks.py and hf_client.py expect role/content style memory
 
     user = relationship("User", back_populates="memories")
