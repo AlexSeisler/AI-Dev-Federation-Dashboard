@@ -1,12 +1,11 @@
 import requests
-import base64
 from fastapi import HTTPException
+import base64
 
 class GitHubService:
     """
-    Read-only GitHub service for AI-Dev-Federation-Dashboard.
-    Provides safe access to repo tree, file content, structure parsing,
-    commit history, and branch SHA.
+    Minimal read-only GitHub service for AI-Dev-Federation-Dashboard.
+    Provides safe access to repo tree, file content, file structure, history, and branch SHA.
     """
 
     BASE_URL = "https://api.github.com"
@@ -37,11 +36,30 @@ class GitHubService:
             raise HTTPException(status_code=500, detail="Invalid file response from GitHub")
         return base64.b64decode(data["content"]).decode("utf-8")
 
+    def get_file_history(self, file_path: str, branch: str = "main"):
+        """Fetch commit history for a file."""
+        url = f"{self.BASE_URL}/repos/{self.owner}/{self.repo}/commits?path={file_path}&sha={branch}"
+        resp = requests.get(url, headers=self.headers)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"GitHub history fetch failed: {resp.text}")
+        return resp.json()
+
+
+
+
+    def get_branch_sha(self, branch: str = "main"):
+        """Get latest commit SHA for a branch."""
+        url = f"{self.BASE_URL}/repos/{self.owner}/{self.repo}/git/ref/heads/{branch}"
+        resp = requests.get(url, headers=self.headers)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"GitHub SHA fetch failed: {resp.text}")
+        return resp.json()["object"]["sha"]
+
     def parse_file_structure(self, code: str):
         """
         Dummy parser for file structure.
-        In a full kernel, this would use LibCST or similar.
-        For demo: detect classes and functions.
+        In a real system, this would call a parser (like LibCST).
+        For demo, we just split functions/classes.
         """
         lines = code.splitlines()
         structure = []
@@ -51,19 +69,3 @@ class GitHubService:
             elif line.strip().startswith("class "):
                 structure.append({"type": "class", "name": line.strip().split()[1].split("(")[0], "line": i + 1})
         return structure
-
-    def get_file_history(self, file_path: str, branch: str = "main"):
-        """Fetch commit history for a file."""
-        url = f"{self.BASE_URL}/repos/{self.owner}/{self.repo}/commits?path={file_path}&sha={branch}"
-        resp = requests.get(url, headers=self.headers)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=f"GitHub history fetch failed: {resp.text}")
-        return resp.json()
-
-    def get_branch_sha(self, branch: str = "main"):
-        """Get latest commit SHA for a branch."""
-        url = f"{self.BASE_URL}/repos/{self.owner}/{self.repo}/git/ref/heads/{branch}"
-        resp = requests.get(url, headers=self.headers)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=f"GitHub SHA fetch failed: {resp.text}")
-        return resp.json()["object"]["sha"]
