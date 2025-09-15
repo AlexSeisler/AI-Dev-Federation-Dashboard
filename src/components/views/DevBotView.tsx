@@ -1,70 +1,256 @@
-import React, { useState, useEffect } from 'react';
-import { Bot, ChevronDown, Play, Terminal, FileText, Package } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bot, ChevronDown, Play, Terminal, FileText, Package, AlertCircle, Copy, CheckCircle, Clock } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+
+interface Task {
+  id: number;
+  type: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  context?: string;
+  logs: LogEntry[];
+}
+
+interface LogEntry {
+  event: string;
+  timestamp: string;
+}
 
 const taskPresets = [
-  'Alignment/Plan',
-  'Analyze Codebase Structure',
-  'Analyze File',
+  { 
+    id: 'brainstorm', 
+    name: 'Alignment/Plan', 
+    description: 'Strategic planning and brainstorming',
+    needsRepo: false,
+    needsFile: false
+  },
+  { 
+    id: 'structure', 
+    name: 'Structure Analysis', 
+    description: 'Analyze repository structure and architecture',
+    needsRepo: true,
+    needsFile: false
+  },
+  { 
+    id: 'file', 
+    name: 'File Analysis', 
+    description: 'Deep dive analysis of specific files',
+    needsRepo: true,
+    needsFile: true
+  },
 ];
 
-const mockLogEntries = [
-  '🔍 Scanning repository structure...',
-  '📁 Found 23 source files to analyze',
-  '⚡ Running static analysis...',
-  '🎯 Detected 3 potential improvements',
-  '📊 Generating performance report...',
-  '✅ Analysis complete - 0 critical issues found'
-];
-
-const mockDiff = `@@ -1,7 +1,10 @@
- import React from 'react';
-+import { useCallback } from 'react';
- 
- const Component = ({ data }) => {
--  const handleClick = () => {
-+  const handleClick = useCallback(() => {
-     console.log(data);
--  };
-+  }, [data]);
-+
-+  // Added memoization for better performance
- 
-   return (
-     <button onClick={handleClick}>`;
-
-const mockArtifacts = [
-  { name: 'performance-report.md', type: 'Report', size: '2.3 KB' },
-  { name: 'security-audit.json', type: 'Analysis', size: '1.8 KB' },
-  { name: 'code-suggestions.diff', type: 'Diff', size: '892 B' },
-  { name: 'package-updates.md', type: 'Guide', size: '1.2 KB' }
-];
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 export const DevBotView: React.FC = () => {
+  const { user } = useAuth();
   const [selectedPreset, setSelectedPreset] = useState<string>('');
+  const [repoId, setRepoId] = useState('AlexSeisler/AI-Dev-Federation-Dashboard');
+  const [filePath, setFilePath] = useState('src/App.tsx');
+  const [userPrompt, setUserPrompt] = useState('Analyze this project and suggest improvements');
   const [isRunning, setIsRunning] = useState(false);
-  const [logIndex, setLogIndex] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [currentTask, setCurrentTask] = useState<Task | null>(null);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [output, setOutput] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [pastTasks, setPastTasks] = useState<Task[]>([]);
+  const [showColdStartMessage, setShowColdStartMessage] = useState(false);
+  
+  const logConsoleRef = useRef<HTMLDivElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Auto-scroll logs
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isRunning && logIndex < mockLogEntries.length) {
-      interval = setInterval(() => {
-        setLogs(prev => [...prev, mockLogEntries[logIndex]]);
-        setLogIndex(prev => prev + 1);
-      }, 1000);
-    } else if (isRunning && logIndex >= mockLogEntries.length) {
+    if (logConsoleRef.current) {
+      logConsoleRef.current.scrollTop = logConsoleRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  // Cleanup EventSource on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
+  }, []);
+
+  const getToken = () => localStorage.getItem('access_token');
+
+  const validateInputs = (preset: string): string | null => {
+    const presetConfig = taskPresets.find(p => p.id === preset);
+    if (!presetConfig) return 'Invalid preset selected';
+
+    if (presetConfig.needsRepo && !repoId.trim()) {
+      return `${presetConfig.name} requires a repository ID (owner/repo format)`;
+    }
+
+    if (presetConfig.needsFile && !filePath.trim()) {
+      return `${presetConfig.name} requires a file path`;
+    }
+
+    if (preset === 'brainstorm' && !userPrompt.trim()) {
+      return 'Alignment/Plan requires a prompt or question';
+    }
+
+    return null;
+  };
+
+  const buildRequestBody = (preset: string) => {
+    const presetConfig = taskPresets.find(p => p.id === preset);
+    if (!presetConfig) return {};
+
+    const body: any = {};
+
+    if (preset === 'brainstorm') {
+      body.context = userPrompt;
+    } else {
+      const contextData: any = {};
+      if (presetConfig.needsRepo) contextData.repo_id = repoId;
+      if (presetConfig.needsFile) contextData.file_path = filePath;
+      body.context = JSON.stringify(contextData);
+    }
+
+    return body;
+  };
+
+  const startTask = async () => {
+    if (!selectedPreset) {
+      setError('Please select a task preset');
+      return;
+    }
+
+    const validationError = validateInputs(selectedPreset);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      setError('Authentication required. Please log in.');
+      return;
+    }
+
+    setIsRunning(true);
+    setError('');
+    setLogs([]);
+    setOutput('');
+    setCurrentTask(null);
+
+    try {
+      const requestBody = buildRequestBody(selectedPreset);
+      
+      const response = await fetch(`${API_URL}/tasks/run/${selectedPreset}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        if (response.status === 503 || response.status === 502) {
+          setShowColdStartMessage(true);
+          setTimeout(() => setShowColdStartMessage(false), 5000);
+          throw new Error('⚡ Backend waking up (cold start). Please retry in a few seconds.');
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const taskId = data.task_id;
+
+      // Start streaming logs
+      streamTaskLogs(taskId, token);
+
+    } catch (err) {
+      console.error('Task start failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start task');
       setIsRunning(false);
     }
-    
-    return () => clearInterval(interval);
-  }, [isRunning, logIndex]);
-
-  const handleRun = () => {
-    if (!selectedPreset) return;
-    setIsRunning(true);
-    setLogIndex(0);
-    setLogs([]);
   };
+
+  const streamTaskLogs = (taskId: number, token: string) => {
+    // Close existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    const eventSource = new EventSource(`${API_URL}/tasks/${taskId}/stream`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    } as any);
+
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      try {
+        const logData = JSON.parse(event.data);
+        setLogs(prev => [...prev, logData]);
+      } catch (err) {
+        console.error('Failed to parse log data:', err);
+      }
+    };
+
+    eventSource.onerror = (event) => {
+      console.error('SSE error:', event);
+      eventSource.close();
+      
+      // Fetch final task result
+      fetchTaskResult(taskId, token);
+    };
+
+    // Fallback: check task completion after 30 seconds
+    setTimeout(() => {
+      if (eventSource.readyState === EventSource.OPEN) {
+        eventSource.close();
+        fetchTaskResult(taskId, token);
+      }
+    }, 30000);
+  };
+
+  const fetchTaskResult = async (taskId: number, token: string) => {
+    try {
+      const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const task = await response.json();
+        setCurrentTask(task);
+        setLogs(task.logs || []);
+        
+        // Extract output from logs or context
+        const outputLog = task.logs?.find((log: LogEntry) => 
+          log.event.includes('HF Response:') || log.event.includes('✅')
+        );
+        if (outputLog) {
+          setOutput(outputLog.event.replace('✅ HF Response: ', ''));
+        }
+        
+        setIsRunning(false);
+      }
+    } catch (err) {
+      console.error('Failed to fetch task result:', err);
+      setIsRunning(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Could add a toast notification here
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  };
+
+  const selectedPresetConfig = taskPresets.find(p => p.id === selectedPreset);
 
   return (
     <div className="h-full p-6 overflow-auto bg-slate-900/20">
@@ -79,60 +265,133 @@ export const DevBotView: React.FC = () => {
               <p className="text-green-300">Interactive Development Assistant</p>
             </div>
           </div>
+
+          {/* Cold Start Message */}
+          {showColdStartMessage && (
+            <div className="mb-4 p-4 bg-orange-900/20 border border-orange-500/30 rounded-lg flex items-center gap-3">
+              <Clock className="w-5 h-5 text-orange-400 animate-pulse" />
+              <span className="text-orange-300">⚡ Backend waking up (cold start). Please retry in a few seconds.</span>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              <span className="text-red-300">{error}</span>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Control Panel */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Repo Selector */}
-            <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700/50">
-              <h3 className="text-white font-semibold mb-3">Repository</h3>
-              <div className="relative">
-                <select 
-                  disabled
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-slate-400 cursor-not-allowed"
-                >
-                  <option>sandbox-demo-repo (Guest Mode)</option>
-                </select>
-                <div className="absolute top-1/2 right-3 transform -translate-y-1/2 pointer-events-none">
-                  <ChevronDown className="w-4 h-4 text-slate-500" />
-                </div>
-              </div>
-            </div>
-
             {/* Task Presets */}
             <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700/50">
               <h3 className="text-white font-semibold mb-3">Task Presets</h3>
               <div className="space-y-2">
-                {taskPresets.map((preset, index) => (
+                {taskPresets.map((preset) => (
                   <button
-                    key={index}
-                    onClick={() => setSelectedPreset(preset)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-all duration-200 ${
-                      selectedPreset === preset
+                    key={preset.id}
+                    onClick={() => setSelectedPreset(preset.id)}
+                    disabled={isRunning}
+                    className={`w-full text-left px-3 py-3 rounded-lg transition-all duration-200 ${
+                      selectedPreset === preset.id
                         ? 'bg-blue-600/30 border border-blue-500/50 text-blue-300'
                         : 'bg-slate-700/30 border border-slate-600/30 text-slate-300 hover:bg-slate-700/50'
-                    }`}
+                    } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    {preset}
+                    <div className="font-medium">{preset.name}</div>
+                    <div className="text-xs text-slate-400 mt-1">{preset.description}</div>
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Adaptive Input Fields */}
+            {selectedPresetConfig && (
+              <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700/50">
+                <h3 className="text-white font-semibold mb-3">Configuration</h3>
+                <div className="space-y-4">
+                  {selectedPreset === 'brainstorm' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Prompt / Question
+                      </label>
+                      <textarea
+                        value={userPrompt}
+                        onChange={(e) => setUserPrompt(e.target.value)}
+                        disabled={isRunning}
+                        className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        rows={3}
+                        placeholder="What would you like to brainstorm about?"
+                      />
+                    </div>
+                  )}
+
+                  {selectedPresetConfig.needsRepo && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Repository ID
+                      </label>
+                      <input
+                        type="text"
+                        value={repoId}
+                        onChange={(e) => setRepoId(e.target.value)}
+                        disabled={isRunning}
+                        className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="owner/repository"
+                      />
+                    </div>
+                  )}
+
+                  {selectedPresetConfig.needsFile && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        File Path
+                      </label>
+                      <input
+                        type="text"
+                        value={filePath}
+                        onChange={(e) => setFilePath(e.target.value)}
+                        disabled={isRunning}
+                        className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="src/components/App.tsx"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Run Button */}
             <button
-              onClick={handleRun}
-              disabled={!selectedPreset || isRunning}
+              onClick={startTask}
+              disabled={!selectedPreset || isRunning || !user}
               className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-3 ${
-                selectedPreset && !isRunning
+                selectedPreset && !isRunning && user
                   ? 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-lg shadow-green-500/20'
                   : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
               }`}
             >
-              <Play className={`w-5 h-5 ${isRunning ? 'animate-pulse' : ''}`} />
-              {isRunning ? 'Running...' : 'Execute Task'}
+              {isRunning ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5" />
+                  Execute Task
+                </>
+              )}
             </button>
+
+            {!user && (
+              <div className="text-center text-slate-400 text-sm">
+                Please log in to run tasks
+              </div>
+            )}
           </div>
 
           {/* Content Area */}
@@ -142,8 +401,17 @@ export const DevBotView: React.FC = () => {
               <div className="flex items-center gap-3 px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
                 <Terminal className="w-5 h-5 text-green-400" />
                 <span className="text-white font-medium">Live Console</span>
+                {isRunning && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-green-400 text-sm">Running</span>
+                  </div>
+                )}
               </div>
-              <div className="h-64 overflow-y-auto p-4 font-mono text-sm bg-slate-950/50">
+              <div 
+                ref={logConsoleRef}
+                className="h-64 overflow-y-auto p-4 font-mono text-sm bg-slate-950/50"
+              >
                 {logs.length === 0 ? (
                   <div className="text-slate-500 italic">
                     Select a task preset and click Execute to see live output...
@@ -151,75 +419,67 @@ export const DevBotView: React.FC = () => {
                 ) : (
                   logs.map((log, index) => (
                     <div key={index} className="text-green-300 mb-1 animate-fadeIn">
-                      <span className="text-slate-500">$ </span>
-                      {log}
+                      <span className="text-slate-500">[{new Date(log.timestamp).toLocaleTimeString()}] </span>
+                      {log.event}
                     </div>
                   ))
                 )}
-                {isRunning && (
-                  <div className="text-blue-400 animate-pulse">
-                    <span className="text-slate-500">$ </span>
-                    Processing...
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Diff Viewer */}
+            {/* Output Viewer */}
             <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 overflow-hidden">
-              <div className="flex items-center gap-3 px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
-                <FileText className="w-5 h-5 text-purple-400" />
-                <span className="text-white font-medium">Code Diff Preview</span>
+              <div className="flex items-center justify-between px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-purple-400" />
+                  <span className="text-white font-medium">AI Output</span>
+                </div>
+                {output && (
+                  <button
+                    onClick={() => copyToClipboard(output)}
+                    className="flex items-center gap-2 px-3 py-1 bg-slate-600/50 hover:bg-slate-600/70 rounded-lg text-slate-300 hover:text-white transition-all duration-200"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span className="text-sm">Copy</span>
+                  </button>
+                )}
               </div>
-              <div className="h-64 overflow-y-auto p-4 font-mono text-sm bg-slate-950/50">
-                {logs.length > 0 ? (
-                  <pre className="text-slate-300">
-                    <span className="text-red-400">--- Original</span>
-                    <br />
-                    <span className="text-green-400">+++ Improved</span>
-                    <br />
-                    <span className="text-blue-400">{mockDiff}</span>
-                  </pre>
+              <div className="h-64 overflow-y-auto p-4 bg-slate-950/50">
+                {output ? (
+                  <div className="text-slate-300 whitespace-pre-wrap leading-relaxed">
+                    {output}
+                  </div>
                 ) : (
                   <div className="text-slate-500 italic">
-                    Code differences will appear here after task execution...
+                    AI-generated suggestions and analysis will appear here after task completion...
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Artifacts List */}
-            <div className="bg-slate-800/60 rounded-xl border border-slate-700/50">
-              <div className="flex items-center gap-3 px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
-                <Package className="w-5 h-5 text-orange-400" />
-                <span className="text-white font-medium">Generated Artifacts</span>
-              </div>
-              <div className="p-4">
-                {logs.length > 3 ? (
-                  <div className="space-y-2">
-                    {mockArtifacts.map((artifact, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg border border-slate-600/30 hover:bg-slate-700/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-4 h-4 text-blue-400" />
-                          <div>
-                            <div className="text-white text-sm font-medium">{artifact.name}</div>
-                            <div className="text-slate-400 text-xs">{artifact.type}</div>
-                          </div>
-                        </div>
-                        <div className="text-slate-400 text-sm">{artifact.size}</div>
-                      </div>
-                    ))}
+            {/* Task Status */}
+            {currentTask && (
+              <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Package className="w-5 h-5 text-orange-400" />
+                    <span className="text-white font-medium">Task #{currentTask.id}</span>
                   </div>
-                ) : (
-                  <div className="text-slate-500 italic text-center py-8">
-                    Generated files and reports will appear here...
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    currentTask.status === 'completed' 
+                      ? 'bg-green-600/20 text-green-300 border border-green-500/30'
+                      : currentTask.status === 'failed'
+                      ? 'bg-red-600/20 text-red-300 border border-red-500/30'
+                      : currentTask.status === 'running'
+                      ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
+                      : 'bg-slate-600/20 text-slate-300 border border-slate-500/30'
+                  }`}>
+                    {currentTask.status === 'completed' && <CheckCircle className="w-4 h-4 inline mr-1" />}
+                    {currentTask.status.charAt(0).toUpperCase() + currentTask.status.slice(1)}
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
