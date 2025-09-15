@@ -34,7 +34,7 @@ def run_task(token, preset="brainstorm", context="Summarize the repo risks."):
 
 def get_task(task_id, headers):
     """
-    Poll task details until completed/failed.
+    Poll task details until completed/failed and return the logs.
     """
     url = f"{API_URL}/tasks/{task_id}"
     while True:
@@ -74,4 +74,8 @@ if __name__ == "__main__":
         stream_logs(task_id, headers)
 
         print(f"\n📊 Polling final task {task_id}...\n")
-        get_task(task_id, headers)
+        final_data = get_task(task_id, headers)
+
+        print("\n📝 Logs from DB:")
+        for log in final_data.get("logs", []):
+            print(" -", log)
