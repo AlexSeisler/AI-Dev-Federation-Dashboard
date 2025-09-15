@@ -1,0 +1,11 @@
+endpoints:
+  - /health/ping
+  - /tasks/run
+  - /tasks/{task_id}
+  - /tasks/{task_id}/stream
+  - /repo/tree
+  - /repo/file
+  - /repo/file/structure
+  - /repo/history
+  - /repo/sha
+  - /introspect/tables
