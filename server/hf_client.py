@@ -57,6 +57,33 @@ def _query_hf(payload: Dict[str, Any], retries: int = 3, backoff: int = 2, timeo
     raise RuntimeError("❌ HF API unreachable.")
 
 
+def _extract_response(result: Dict[str, Any]) -> str:
+    """Normalize Hugging Face response into a clean string."""
+    try:
+        # OpenAI-style: choices[0].message.content
+        if "choices" in result and "message" in result["choices"][0]:
+            return result["choices"][0]["message"]["content"]
+
+        # HF-style: choices[0].delta.content (streaming chunks)
+        if "choices" in result and "delta" in result["choices"][0]:
+            return result["choices"][0]["delta"].get("content", "")
+
+        # HF text completion: choices[0].text
+        if "choices" in result and "text" in result["choices"][0]:
+            return result["choices"][0]["text"]
+
+        # Fallback: generated_text
+        if "generated_text" in result:
+            return result["generated_text"]
+
+    except Exception as e:
+        print(f"❌ Failed to extract response: {e}")
+
+    # Debug: dump response if schema unknown
+    print(f"⚠️ Unexpected HF API response format: {result}")
+    return "[Error: unexpected response format]"
+
+
 def run_completion(
     preset: str,
     context: str,
@@ -66,16 +93,6 @@ def run_completion(
 ) -> str:
     """
     Run a Hugging Face chat completion request using the Router API.
-
-    Args:
-        preset: One of 'structure', 'file', 'brainstorm'.
-        context: Recruiter-provided context or instructions.
-        memory: Optional conversation memory [{role, content}].
-        repo_context: Extra repo-aware context (tree, file, structures).
-        max_tokens: Output token cap (default = HF_MAX_TOKENS).
-
-    Returns:
-        str: Model response content.
     """
     if preset not in SYSTEM_PRESETS:
         raise ValueError(f"❌ Invalid preset: {preset}")
@@ -101,8 +118,4 @@ def run_completion(
     }
 
     result = _query_hf(payload)
-
-    try:
-        return result["choices"][0]["message"]["content"]
-    except (KeyError, IndexError):
-        raise RuntimeError(f"❌ Unexpected HF API response: {result}")
+    return _extract_response(result)

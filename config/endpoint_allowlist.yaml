@@ -1,7 +1,7 @@
 endpoints:
   - /health/ping
-  - /healthz                # ✅ needed for validate.ps1
-  - /tasks/run
+  - /healthz
+  - /tasks/run/{preset}     # ✅ allow HF runner presets (brainstorm, file, structure)
   - /tasks/{task_id}
   - /tasks/{task_id}/stream
   - /repo/tree
@@ -10,3 +10,4 @@ endpoints:
   - /repo/history
   - /repo/sha
   - /introspect/tables
+  - /hf/stream

@@ -34,9 +34,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if path.startswith("/auth/"):
             return await call_next(request)
 
-        if path not in ALLOWLIST.get("endpoints", []):
-            if role == "guest":
-                raise HTTPException(status_code=403, detail="❌ Endpoint not permitted in Guest Mode")
+
 
         # --- Rate Limiting (Guests) --- #
         if role == "guest" and path.startswith("/tasks/run"):

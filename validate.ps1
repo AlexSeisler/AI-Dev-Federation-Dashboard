@@ -22,7 +22,7 @@ catch {
 }
 
 # -------------------------------------------------
-# Phase 2: Login
+# Phase 2: Login (Admin user)
 # -------------------------------------------------
 Write-Host "`n[Step 2] Login as approved user" -ForegroundColor Cyan
 try {
@@ -38,9 +38,11 @@ catch {
     exit 1
 }
 
+# -------------------------------------------------
+# Phase 3: Repo context (public fetch)
+# -------------------------------------------------
 Write-Host "`n[Step 3] Dry-run repo context assembly (no HF call)" -ForegroundColor Cyan
 try {
-    # ✅ Public repo — no JWT required
     $treeResponse = Invoke-RestMethod -Uri "$baseUrl/repo/tree?repo_id=AlexSeisler/AI-Dev-Federation-Dashboard&branch=main" -Method GET
     if ($treeResponse) {
         Write-Host "[OK] Repo tree fetch succeeded" -ForegroundColor Green
@@ -55,23 +57,42 @@ try {
     exit 1
 }
 
-Write-Host "`n[Step 4] Hugging Face streaming integration" -ForegroundColor Cyan
+# -------------------------------------------------
+# Phase 4: Hugging Face Task Runner (Guest mode demo)
+# -------------------------------------------------
+Write-Host "`n[Step 4] Hugging Face task runner integration" -ForegroundColor Cyan
 try {
-    $hfBody = @{ prompt = "Hello Federation" } | ConvertTo-Json
-    $hfResponse = Invoke-RestMethod -Uri "$baseUrl/hf/stream" -Method POST -Body $hfBody -ContentType "application/json"
-    Write-Host "[OK] HF streaming call succeeded" -ForegroundColor Green
+    # Kick off a brainstorm preset task
+    $taskResponse = Invoke-RestMethod -Uri "$baseUrl/tasks/run/brainstorm" `
+        -Method POST -ContentType "application/json" `
+        -Body (@{ context = "Demo Federation run" } | ConvertTo-Json) `
+        -Headers @{ Authorization = "Bearer $jwt" }
+
+    $taskId = $taskResponse.task_id
+    Write-Host "[OK] Task started (ID: $taskId)" -ForegroundColor Green
+
+    # Stream logs until completion
+    Write-Host "[INFO] Streaming task logs..." -ForegroundColor Cyan
+    $stream = Invoke-WebRequest -Uri "$baseUrl/tasks/$taskId/stream" `
+        -Headers @{ Authorization = "Bearer $jwt" } -UseBasicParsing
+
+    $stream.Content | Write-Host
 } catch {
-    Write-Host "[ERROR] HF streaming test failed." -ForegroundColor Red
+    Write-Host "[ERROR] HF task runner test failed." -ForegroundColor Red
     $_ | Out-String | Write-Host
     exit 1
 }
 
-
 <#
+# -------------------------------------------------
+# Phase 5: End-to-end recruiter validation
+# -------------------------------------------------
 Write-Host "`n[Step 5] End-to-end recruiter validation" -ForegroundColor Cyan
 try {
     $validateBody = @{ candidate = "John Doe" } | ConvertTo-Json
-    $validateResponse = Invoke-RestMethod -Uri "$baseUrl/recruiter/validate" -Method POST -Body $validateBody -ContentType "application/json"
+    $validateResponse = Invoke-RestMethod -Uri "$baseUrl/recruiter/validate" `
+        -Method POST -Body $validateBody -ContentType "application/json"
+
     Write-Host "[OK] Recruiter validation succeeded" -ForegroundColor Green
 } catch {
     Write-Host "[ERROR] Recruiter validation failed." -ForegroundColor Red
