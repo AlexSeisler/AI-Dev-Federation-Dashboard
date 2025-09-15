@@ -1,5 +1,6 @@
 endpoints:
   - /health/ping
+  - /healthz                # ✅ needed for validate.ps1
   - /tasks/run
   - /tasks/{task_id}
   - /tasks/{task_id}/stream

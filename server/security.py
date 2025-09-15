@@ -13,7 +13,7 @@ with open(ALLOWLIST_PATH, "r") as f:
     ALLOWLIST = yaml.safe_load(f)
 
 # --- Rate Limit (Guests) --- #
-GUEST_LIMIT = 5  # tasks/hour
+GUEST_LIMIT = 5  # tasks/minute
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -30,6 +30,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         method = request.method
 
         # --- Allowlist Enforcement --- #
+        # Always allow authentication endpoints
+        if path.startswith("/auth/"):
+            return await call_next(request)
+
         if path not in ALLOWLIST.get("endpoints", []):
             if role == "guest":
                 raise HTTPException(status_code=403, detail="❌ Endpoint not permitted in Guest Mode")

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server import auth, tasks
+from server import auth, tasks, github
 from server.security import SecurityMiddleware  # ✅ import security middleware
 
 app = FastAPI(
@@ -28,6 +28,7 @@ app.add_middleware(SecurityMiddleware)
 # Routers
 app.include_router(auth.router)
 app.include_router(tasks.router)
+app.include_router(github.router)  # ✅ GitHub endpoints wired in
 
 @app.get("/healthz")
 def health_check():

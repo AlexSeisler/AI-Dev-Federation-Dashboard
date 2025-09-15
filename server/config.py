@@ -12,15 +12,18 @@ class Settings(BaseSettings):
     # JWT secret for signing tokens
     jwt_secret: str = os.getenv("JWT_SECRET", "supersecret")
 
-    # GitHub token for read-only API access
-    github_token: str = os.getenv("GITHUB_TOKEN", "")
+    # GitHub tokens
+    github_token: str = os.getenv("GITHUB_TOKEN", "")  # Classic token
+    github_fine_token: str = os.getenv("GITHUB_FINE_TOKEN", "")  # Fine-grained PAT
 
     # Hugging Face integration
     hf_api_key: str = os.getenv("HF_API_KEY", "")
-    hf_model: str = os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+    hf_model: str = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
+    hf_max_tokens: int = int(os.getenv("HF_MAX_TOKENS", "8192"))  # ✅ configurable max tokens
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # ✅ ignore unknown env vars so startup doesn’t crash
 
 
 settings = Settings()
