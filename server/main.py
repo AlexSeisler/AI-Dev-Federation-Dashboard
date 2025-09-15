@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from server import auth
+from server import auth, tasks  # ⬅️ added tasks import
 
 app = FastAPI(
     title="AI Dev Federation Dashboard Backend",
@@ -22,6 +22,7 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth.router)
+app.include_router(tasks.router)  # ⬅️ added tasks router
 
 @app.get("/healthz")
 def health_check():

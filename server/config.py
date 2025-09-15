@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # GitHub token for read-only API access
     github_token: str = os.getenv("GITHUB_TOKEN", "")
 
+    # Hugging Face integration
+    hf_api_key: str = os.getenv("HF_API_KEY", "")
+    hf_model: str = os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+
     class Config:
         env_file = ".env"
 

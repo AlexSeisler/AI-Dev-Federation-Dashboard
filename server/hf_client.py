@@ -1,60 +1,60 @@
 import os
+import requests
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
 from typing import List, Dict
 
 # Load environment variables
 load_dotenv()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
+HF_MODEL = os.getenv("HF_MODEL", "google/flan-t5-large")
 
 if not HF_API_KEY:
     raise ValueError("HF_API_KEY not found. Check your .env file.")
 
-# Initialize Hugging Face Inference Client
-client = InferenceClient(
-    provider="featherless-ai",
-    api_key=HF_API_KEY,
-)
+API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 
 def run_completion(preset: str, context: str, memory: List[Dict[str, str]] = None) -> str:
     """
-    Run a Hugging Face completion with preset + context + memory.
-    
-    :param preset: Type of task (structure, file, brainstorm)
-    :param context: Repo/file content or task input
-    :param memory: List of previous conversation turns [{role, content}]
-    :return: Generated response string
+    Run a Hugging Face text completion (Flan-T5).
     """
-    messages = []
 
-    # Inject memory (last 3–5 entries)
+    # Add memory context (flatten into text)
+    memory_text = ""
     if memory:
         for m in memory[-5:]:
-            messages.append({"role": m["role"], "content": m["content"]})
+            memory_text += f"{m['role'].upper()}: {m['content']}\n"
 
-    # Add system preset
+    # System prompt per preset
     system_prompts = {
-        "structure": "You are DevBot. Summarize repo structure, describe key files/classes, and suggest improvements.",
-        "file": "You are DevBot. Review this file, identify purpose, risks, inefficiencies, and improvements.",
-        "brainstorm": "You are DevBot. Engage in brainstorming session about repo tradeoffs and improvements.",
+        "structure": "Summarize repo structure, describe key files/classes, and suggest improvements.",
+        "file": "Review this file, identify purpose, risks, inefficiencies, and improvements.",
+        "brainstorm": "Engage in brainstorming session about repo tradeoffs and improvements.",
     }
 
     if preset not in system_prompts:
         raise ValueError(f"Invalid preset: {preset}")
 
-    messages.append({"role": "system", "content": system_prompts[preset]})
+    # Final prompt (plain text)
+    prompt = f"{system_prompts[preset]}\n\nContext:\n{context}\n\nConversation:\n{memory_text}\n\nAnswer:"
 
-    # Add recruiter input context
-    if context:
-        messages.append({"role": "user", "content": context})
+    # Hugging Face inference API payload
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_new_tokens": 512},
+    }
 
-    # Run Hugging Face call
-    completion = client.chat.completions.create(
-        model=HF_MODEL,
-        messages=messages,
-    )
+    resp = requests.post(API_URL, headers=HEADERS, json=payload)
 
-    return completion.choices[0].message["content"]
+    if resp.status_code != 200:
+        raise RuntimeError(f"Hugging Face API call failed: {resp.status_code} {resp.text}")
+
+    result = resp.json()
+
+    # Flan-T5 returns a list of dicts with "generated_text"
+    if isinstance(result, list) and "generated_text" in result[0]:
+        return result[0]["generated_text"]
+    else:
+        return str(result)
