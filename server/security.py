@@ -1,6 +1,6 @@
 import yaml
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from server.database import get_db
@@ -14,6 +14,7 @@ with open(ALLOWLIST_PATH, "r") as f:
 
 # --- Rate Limit (Guests) --- #
 GUEST_LIMIT = 5  # tasks/hour
+
 
 class SecurityMiddleware(BaseHTTPMiddleware):
     """
@@ -35,21 +36,26 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
         # --- Rate Limiting (Guests) --- #
         if role == "guest" and path.startswith("/tasks/run"):
-            one_hour_ago = datetime.utcnow()
-            task_count = db.query(AuditLog).filter(
-                AuditLog.user_id == 0,  # guests log as user_id=0
-                AuditLog.timestamp >= one_hour_ago,
-                AuditLog.action.like("TASK_%")
-            ).count()
+            one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+
+            task_count = (
+                db.query(AuditLog)
+                .filter(
+                    AuditLog.user_id.is_(None),  # ✅ guests log with NULL user_id
+                    AuditLog.timestamp >= one_minute_ago,
+                    AuditLog.action.like("TASK_%"),
+                )
+                .count()
+            )
 
             if task_count >= GUEST_LIMIT:
-                raise HTTPException(status_code=429, detail="❌ Guest rate limit exceeded")
+                raise HTTPException(status_code=429, detail="❌ Guest rate limit exceeded (5 tasks/min)")
 
         # --- Audit Log --- #
         log = AuditLog(
             user_id=user["id"] if user else None,  # ✅ fallback for guests
             action=f"{method} {path}",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
         db.add(log)
         db.commit()

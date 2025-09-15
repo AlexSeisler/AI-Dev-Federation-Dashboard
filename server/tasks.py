@@ -1,5 +1,3 @@
-# server/tasks.py
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -29,14 +27,16 @@ async def stream_logs(log_queue: asyncio.Queue):
             break
         yield f"data: {json.dumps(message)}\n\n"
 
+
 def log_event(db: Session, task: Task, event: str, log_queue: asyncio.Queue):
     """Persist and stream log events."""
-    log_entry = UserLog(task_id=task.id, event=event, timestamp=datetime.utcnow())
+    log_entry = UserLog(task_id=task.id, response=event, timestamp=datetime.utcnow())  # ✅ use response field
     db.add(log_entry)
     db.commit()
     db.refresh(log_entry)
 
     asyncio.create_task(log_queue.put({"event": event, "timestamp": log_entry.timestamp.isoformat()}))
+
 
 async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_id: int, log_queue: asyncio.Queue):
     """Main runner logic with repo context + Hugging Face integration."""
@@ -52,7 +52,6 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             repo_context += f"Repo Tree:\n{json.dumps(tree, indent=2)}\n"
 
             log_event(db, task, "📂 Analyzing file structure...", log_queue)
-            # For demo, parse App.tsx as an example
             code = github_service.get_file("src/App.tsx")
             structure = github_service.parse_file_structure(code)
             repo_context += f"File Structure (App.tsx):\n{json.dumps(structure, indent=2)}\n"
@@ -78,14 +77,26 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
         # --- Hugging Face Call --- #
         log_event(db, task, "📡 Sending request to Hugging Face...", log_queue)
 
-        # Load memory
-        memory_entries = db.query(Memory).filter(Memory.user_id == user_id).order_by(Memory.created_at.desc()).limit(5).all()
-        memory_context = "\n".join([m.response for m in memory_entries if m.response])
+        # Load last 5 memory entries
+        memory_entries = (
+            db.query(Memory)
+            .filter(Memory.user_id == user_id)
+            .order_by(Memory.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        memory_context = "\n".join([m.content for m in memory_entries if m.content])  # ✅ use content
 
+        # Run LLM completion
         response_text = run_completion(preset, context, memory_context, repo_context)
 
-        # Persist to memory
-        memory_entry = Memory(user_id=user_id, response=response_text, created_at=datetime.utcnow())
+        # Persist to memory (assistant role)
+        memory_entry = Memory(
+            user_id=user_id,
+            role="assistant",
+            content=response_text,
+            created_at=datetime.utcnow()
+        )
         db.add(memory_entry)
         db.commit()
 
@@ -105,15 +116,27 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
     finally:
         await log_queue.put(None)  # end SSE stream
 
+
 # --- API Routes --- #
 
 @router.post("/run/{preset}")
-async def run_task(preset: str, context: str = "", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def run_task(
+    preset: str,
+    context: str = "",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Start a new runner task."""
     user_id = current_user["id"]
 
     # Create DB task
-    task = Task(user_id=user_id, type=preset, status="pending", created_at=datetime.utcnow(), context=context)
+    task = Task(
+        user_id=user_id,
+        type=preset,
+        status="pending",
+        created_at=datetime.utcnow(),
+        context=context
+    )
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -123,23 +146,34 @@ async def run_task(preset: str, context: str = "", db: Session = Depends(get_db)
 
     return {"task_id": task.id, "status": "started"}
 
+
 @router.get("/{task_id}/stream")
-async def stream_task(task_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def stream_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Stream logs for a running task."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
     log_queue = asyncio.Queue()
+
     # Replay existing logs
     existing_logs = db.query(UserLog).filter(UserLog.task_id == task_id).all()
     for log in existing_logs:
-        await log_queue.put({"event": log.event, "timestamp": log.timestamp.isoformat()})
+        await log_queue.put({"event": log.response, "timestamp": log.timestamp.isoformat()})  # ✅ use response
 
     return StreamingResponse(stream_logs(log_queue), media_type="text/event-stream")
 
+
 @router.get("/{task_id}")
-def get_task(task_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Fetch task details + logs."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
@@ -151,5 +185,5 @@ def get_task(task_id: int, db: Session = Depends(get_db), current_user: dict = D
         "type": task.type,
         "status": task.status,
         "context": task.context,
-        "logs": [{"event": log.event, "timestamp": log.timestamp.isoformat()} for log in logs]
+        "logs": [{"event": log.response, "timestamp": log.timestamp.isoformat()} for log in logs],  # ✅ use response
     }

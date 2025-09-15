@@ -9,6 +9,7 @@ load_dotenv()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
+HF_MAX_TOKENS = int(os.getenv("HF_MAX_TOKENS", "8192"))  # ✅ configurable max tokens, default 8k
 
 if not HF_API_KEY:
     raise ValueError("❌ HF_API_KEY not found. Check your .env file.")
@@ -61,8 +62,8 @@ def run_completion(
     context: str,
     memory: Optional[List[Dict[str, str]]] = None,
     repo_context: Optional[str] = None,
-    max_tokens: int = 1024,
-) -> Dict[str, Any]:
+    max_tokens: Optional[int] = None,
+) -> str:
     """
     Run a Hugging Face chat completion request using the Router API.
 
@@ -71,14 +72,10 @@ def run_completion(
         context: Recruiter-provided context or instructions.
         memory: Optional conversation memory [{role, content}].
         repo_context: Extra repo-aware context (tree, file, structures).
-        max_tokens: Output token cap.
+        max_tokens: Output token cap (default = HF_MAX_TOKENS).
 
     Returns:
-        dict with structured fields:
-            {
-                "content": str,
-                "raw": dict (HF API response),
-            }
+        str: Model response content.
     """
     if preset not in SYSTEM_PRESETS:
         raise ValueError(f"❌ Invalid preset: {preset}")
@@ -100,14 +97,12 @@ def run_completion(
     payload = {
         "model": HF_MODEL,
         "messages": messages,
-        "max_tokens": max_tokens,
+        "max_tokens": max_tokens or HF_MAX_TOKENS,
     }
 
     result = _query_hf(payload)
 
     try:
-        content = result["choices"][0]["message"]["content"]
+        return result["choices"][0]["message"]["content"]
     except (KeyError, IndexError):
         raise RuntimeError(f"❌ Unexpected HF API response: {result}")
-
-    return {"content": content, "raw": result}
