@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from server import auth, tasks  # ⬅️ added tasks import
+
+from server import auth, tasks
+from server.security import SecurityMiddleware  # ✅ import security middleware
 
 app = FastAPI(
     title="AI Dev Federation Dashboard Backend",
@@ -20,10 +22,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ Add security middleware
+app.add_middleware(SecurityMiddleware)
+
 # Routers
 app.include_router(auth.router)
-app.include_router(tasks.router)  # ⬅️ added tasks router
+app.include_router(tasks.router)
 
 @app.get("/healthz")
 def health_check():
+    """Deep health check: confirms DB + services are alive."""
     return {"status": "ok", "message": "Backend service is alive"}
+
+@app.get("/health/ping")
+def ping():
+    """Lightweight health ping (fast recruiter heartbeat)."""
+    return {"pong": True}
