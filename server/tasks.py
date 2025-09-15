@@ -57,8 +57,8 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             except Exception:
                 context_data = {"raw": context}
 
-        # Resolve repo owner/repo
-        owner, repo = "AlexSeisler", "AI-Dev-Federation-Dashboard"  # default fallback
+        # Resolve repo owner/repo (default fallback)
+        owner, repo = "AlexSeisler", "AI-Dev-Federation-Dashboard"
         if "repo_id" in context_data and "/" in context_data["repo_id"]:
             owner, repo = context_data["repo_id"].split("/", 1)
 
@@ -68,28 +68,18 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             tree = github_service.get_repo_tree(owner, repo)
             repo_context += f"Repo Tree:\n{json.dumps(tree, indent=2)}\n"
 
-            log_event(db, task, "📂 Analyzing file structure...", log_queue)
-            code = github_service.get_file(owner, repo, "src/App.tsx")
-            structure = github_service.parse_file_structure(code)
-            repo_context += f"File Structure (App.tsx):\n{json.dumps(structure, indent=2)}\n"
-
         elif preset == "file":
             file_path = context_data.get("file_path", "src/App.tsx")
             log_event(db, task, f"📂 Fetching file {file_path}...", log_queue)
             code = github_service.get_file(owner, repo, file_path)
-            repo_context += f"File: {file_path}\n\n{code[:1000]}...\n"
+            repo_context += f"File: {file_path}\n\n{code[:5000]}...\n"
 
-            log_event(db, task, "📂 Parsing file structure...", log_queue)
-            structure = github_service.parse_file_structure(code)
-            repo_context += f"File Structure:\n{json.dumps(structure, indent=2)}\n"
-
-        elif preset == "brainstorm":
-            log_event(db, task, "📂 Fetching repo tree for brainstorm...", log_queue)
-            tree = github_service.get_repo_tree(owner, repo)
-            repo_context += f"Repo Tree:\n{json.dumps(tree, indent=2)}\n"
+        elif preset == "align":
+            log_event(db, task, "📊 Starting alignment/plan task (no repo context)...", log_queue)
 
         else:
             log_event(db, task, f"⚠️ Unknown preset: {preset}", log_queue)
+
 
         # Save repo_context
         task.context = repo_context
@@ -106,9 +96,10 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             .limit(5)
             .all()
         )
-        memory_context = "\n".join([m.content for m in memory_entries if m.content])
-
-        # Run LLM completion
+        memory_context = [
+            {"role": m.role, "content": m.content}
+            for m in memory_entries if m.content
+        ]
         response_text = run_completion(preset, context, memory_context, repo_context)
 
         # Persist to memory (assistant role)

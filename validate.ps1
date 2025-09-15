@@ -1,6 +1,6 @@
 # ===============================
 # AI-Dev-Federation-Dashboard
-# Stage 3 Phase 3 Validation Script (Runner-Focused)
+# Stage 3 Phase 5 Full End-to-End Validation (Approved User)
 # ===============================
 
 $baseUrl = "http://localhost:8080"
@@ -22,28 +22,32 @@ catch {
 }
 
 # -------------------------------------------------
-# Phase 2: Login (Admin user)
+# Phase 2: Login as approved non-admin user
 # -------------------------------------------------
-Write-Host "`n[Step 2] Login as approved user" -ForegroundColor Cyan
+Write-Host "`n[Step 2] Login as approved user ($email)" -ForegroundColor Cyan
 try {
     $loginResponse = Invoke-RestMethod -Uri "$baseUrl/auth/login" `
       -Method POST -ContentType "application/json" `
       -Body (@{ email = $email; password = $password } | ConvertTo-Json)
 
     $jwt = $loginResponse.access_token
-    Write-Host "[OK] Got JWT: $jwt" -ForegroundColor Green
+    Write-Host "[OK] Got JWT for $email" -ForegroundColor Green
 }
 catch {
-    Write-Host "[ERROR] Login failed. Make sure $email is approved." -ForegroundColor Red
+    Write-Host "[ERROR] Login failed for $email" -ForegroundColor Red
+    $_ | Out-String | Write-Host
     exit 1
 }
 
+
 # -------------------------------------------------
-# Phase 3: Repo context (public fetch)
+# Phase 3: Repo context (direct fetch)
 # -------------------------------------------------
-Write-Host "`n[Step 3] Dry-run repo context assembly (no HF call)" -ForegroundColor Cyan
+Write-Host "`n[Step 3] Repo context fetch (direct)" -ForegroundColor Cyan
 try {
-    $treeResponse = Invoke-RestMethod -Uri "$baseUrl/repo/tree?repo_id=AlexSeisler/AI-Dev-Federation-Dashboard&branch=main" -Method GET
+    $treeResponse = Invoke-RestMethod -Uri "$baseUrl/repo/tree?repo_id=AlexSeisler/AI-Dev-Federation-Dashboard&branch=main" `
+        -Method GET -Headers @{ Authorization = "Bearer $jwt" }
+
     if ($treeResponse) {
         Write-Host "[OK] Repo tree fetch succeeded" -ForegroundColor Green
         Write-Host "Found $($treeResponse.Count) files in tree."
@@ -52,51 +56,62 @@ try {
         exit 1
     }
 } catch {
-    Write-Host "[ERROR] Dry-run repo tree fetch failed." -ForegroundColor Red
+    Write-Host "[ERROR] Repo tree fetch failed." -ForegroundColor Red
     $_ | Out-String | Write-Host
     exit 1
 }
-
 # -------------------------------------------------
-# Phase 4: Hugging Face Task Runner (Guest mode demo)
+# Phase 4: Hugging Face Task Runner (preset tests)
 # -------------------------------------------------
-Write-Host "`n[Step 4] Hugging Face task runner integration" -ForegroundColor Cyan
+Write-Host "`n[Step 4] Hugging Face task runner" -ForegroundColor Cyan
 try {
-    # Kick off a brainstorm preset task
-    $taskResponse = Invoke-RestMethod -Uri "$baseUrl/tasks/run/brainstorm" `
-        -Method POST -ContentType "application/json" `
-        -Body (@{ context = "Demo Federation run" } | ConvertTo-Json) `
+    # Alignment/Plan
+    $alignBody = @{
+        context = '{
+            "user_prompt": "Draft an alignment plan for repo improvements"
+        }'
+    } | ConvertTo-Json
+    $alignTask = Invoke-RestMethod -Uri "$baseUrl/tasks/run/align" `
+        -Method POST -ContentType "application/json" -Body $alignBody `
         -Headers @{ Authorization = "Bearer $jwt" }
+    $alignTaskId = $alignTask.task_id
+    Write-Host "[OK] Alignment/Plan task started (ID: $alignTaskId)" -ForegroundColor Green
+    $alignStream = Invoke-WebRequest -Uri "$baseUrl/tasks/$alignTaskId/stream" -Headers @{ Authorization = "Bearer $jwt" } -UseBasicParsing
+    $alignStream.Content | Write-Host
 
-    $taskId = $taskResponse.task_id
-    Write-Host "[OK] Task started (ID: $taskId)" -ForegroundColor Green
+    # Structure Analysis (injects /repo/tree context)
+    $structBody = @{
+        context = '{
+            "repo_id": "AlexSeisler/AI-Dev-Federation-Dashboard",
+            "user_prompt": "Summarize the repository structure and suggest improvements"
+        }'
+    } | ConvertTo-Json
+    $structTask = Invoke-RestMethod -Uri "$baseUrl/tasks/run/structure" `
+        -Method POST -ContentType "application/json" -Body $structBody `
+        -Headers @{ Authorization = "Bearer $jwt" }
+    $structTaskId = $structTask.task_id
+    Write-Host "[OK] Structure Analysis task started (ID: $structTaskId)" -ForegroundColor Green
+    $structStream = Invoke-WebRequest -Uri "$baseUrl/tasks/$structTaskId/stream" -Headers @{ Authorization = "Bearer $jwt" } -UseBasicParsing
+    $structStream.Content | Write-Host
 
-    # Stream logs until completion
-    Write-Host "[INFO] Streaming task logs..." -ForegroundColor Cyan
-    $stream = Invoke-WebRequest -Uri "$baseUrl/tasks/$taskId/stream" `
-        -Headers @{ Authorization = "Bearer $jwt" } -UseBasicParsing
-
-    $stream.Content | Write-Host
-} catch {
+    # File Analysis (injects /repo/file context)
+    $fileBody = @{
+        context = '{
+            "repo_id": "AlexSeisler/AI-Dev-Federation-Dashboard",
+            "file_path": "server/main.py",
+            "user_prompt": "Review this file for purpose, risks, and possible improvements"
+        }'
+    } | ConvertTo-Json
+    $fileTask = Invoke-RestMethod -Uri "$baseUrl/tasks/run/file" `
+        -Method POST -ContentType "application/json" -Body $fileBody `
+        -Headers @{ Authorization = "Bearer $jwt" }
+    $fileTaskId = $fileTask.task_id
+    Write-Host "[OK] File Analysis task started (ID: $fileTaskId)" -ForegroundColor Green
+    $fileStream = Invoke-WebRequest -Uri "$baseUrl/tasks/$fileTaskId/stream" -Headers @{ Authorization = "Bearer $jwt" } -UseBasicParsing
+    $fileStream.Content | Write-Host
+}
+catch {
     Write-Host "[ERROR] HF task runner test failed." -ForegroundColor Red
     $_ | Out-String | Write-Host
     exit 1
 }
-
-<#
-# -------------------------------------------------
-# Phase 5: End-to-end recruiter validation
-# -------------------------------------------------
-Write-Host "`n[Step 5] End-to-end recruiter validation" -ForegroundColor Cyan
-try {
-    $validateBody = @{ candidate = "John Doe" } | ConvertTo-Json
-    $validateResponse = Invoke-RestMethod -Uri "$baseUrl/recruiter/validate" `
-        -Method POST -Body $validateBody -ContentType "application/json"
-
-    Write-Host "[OK] Recruiter validation succeeded" -ForegroundColor Green
-} catch {
-    Write-Host "[ERROR] Recruiter validation failed." -ForegroundColor Red
-    $_ | Out-String | Write-Host
-    exit 1
-}
-#>

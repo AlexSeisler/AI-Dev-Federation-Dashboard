@@ -3,6 +3,7 @@ import time
 import requests
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
+import json
 
 # Load environment variables
 load_dotenv()
@@ -21,8 +22,9 @@ HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 SYSTEM_PRESETS = {
     "structure": "You are DevBot. Summarize repo structure, describe key files/classes, and suggest improvements.",
     "file": "You are DevBot. Review this file, identify purpose, risks, inefficiencies, and improvements.",
-    "brainstorm": "You are DevBot. Engage in brainstorming session about repo tradeoffs and improvements.",
+    "align": "You are DevBot. Help align plans, strategies, and technical tradeoffs. Provide high-level recommendations without requiring repo context.",
 }
+
 
 
 def _query_hf(payload: Dict[str, Any], retries: int = 3, backoff: int = 2, timeout: int = 60) -> Dict[str, Any]:
@@ -116,6 +118,7 @@ def run_completion(
         "messages": messages,
         "max_tokens": max_tokens or HF_MAX_TOKENS,
     }
+    print("🔍 HF Final Payload:", json.dumps(payload, indent=2)[:5000])
 
     result = _query_hf(payload)
     return _extract_response(result)
