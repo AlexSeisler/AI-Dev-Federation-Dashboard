@@ -38,27 +38,44 @@ catch {
     exit 1
 }
 
-# -------------------------------------------------
-# Phase 3: Dry Run (repo tree context only)
-# -------------------------------------------------
 Write-Host "`n[Step 3] Dry-run repo context assembly (no HF call)" -ForegroundColor Cyan
 try {
-    $treeResponse = Invoke-RestMethod -Uri "$baseUrl/repo/tree?repo_id=AlexSeisler/AI-Dev-Federation-Dashboard`&branch=main" `
-      -Method GET `
-      -Headers @{ Authorization = "Bearer $jwt" }
-
-    Write-Host "[OK] Repo tree retrieved (showing first 10 entries):" -ForegroundColor Green
-    $treeResponse | Select-Object -First 10 | ConvertTo-Json -Depth 3
-}
-catch {
+    # ✅ Public repo — no JWT required
+    $treeResponse = Invoke-RestMethod -Uri "$baseUrl/repo/tree?repo_id=AlexSeisler/AI-Dev-Federation-Dashboard&branch=main" -Method GET
+    if ($treeResponse) {
+        Write-Host "[OK] Repo tree fetch succeeded" -ForegroundColor Green
+        Write-Host "Found $($treeResponse.Count) files in tree."
+    } else {
+        Write-Host "[ERROR] Repo tree fetch returned empty" -ForegroundColor Red
+        exit 1
+    }
+} catch {
     Write-Host "[ERROR] Dry-run repo tree fetch failed." -ForegroundColor Red
+    $_ | Out-String | Write-Host
     exit 1
 }
 
-# -------------------------------------------------
-# Extra phases (commented for now)
-# -------------------------------------------------
+Write-Host "`n[Step 4] Hugging Face streaming integration" -ForegroundColor Cyan
+try {
+    $hfBody = @{ prompt = "Hello Federation" } | ConvertTo-Json
+    $hfResponse = Invoke-RestMethod -Uri "$baseUrl/hf/stream" -Method POST -Body $hfBody -ContentType "application/json"
+    Write-Host "[OK] HF streaming call succeeded" -ForegroundColor Green
+} catch {
+    Write-Host "[ERROR] HF streaming test failed." -ForegroundColor Red
+    $_ | Out-String | Write-Host
+    exit 1
+}
+
+
 <#
-# Phase 4: HF Integration Test (with streaming)
-# Phase 5: Full End-to-End Fetch
+Write-Host "`n[Step 5] End-to-end recruiter validation" -ForegroundColor Cyan
+try {
+    $validateBody = @{ candidate = "John Doe" } | ConvertTo-Json
+    $validateResponse = Invoke-RestMethod -Uri "$baseUrl/recruiter/validate" -Method POST -Body $validateBody -ContentType "application/json"
+    Write-Host "[OK] Recruiter validation succeeded" -ForegroundColor Green
+} catch {
+    Write-Host "[ERROR] Recruiter validation failed." -ForegroundColor Red
+    $_ | Out-String | Write-Host
+    exit 1
+}
 #>
