@@ -188,11 +188,8 @@ export const DevBotView: React.FC = () => {
       eventSourceRef.current.close();
     }
 
-    const eventSource = new EventSource(`${API_URL}/tasks/${taskId}/stream`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    } as any);
+    const eventSource = new EventSource(`${API_URL}/tasks/${taskId}/stream?token=${token}`);
+
 
     eventSourceRef.current = eventSource;
 
