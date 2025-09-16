@@ -74,7 +74,7 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             code = github_service.get_file(owner, repo, file_path)
             repo_context += f"File: {file_path}\n\n{code[:5000]}...\n"
 
-        elif preset == "align":
+        elif preset == "brainstorm":   # ✅ updated to match frontend ID
             log_event(db, task, "📊 Starting alignment/plan task (no repo context)...", log_queue)
 
         else:

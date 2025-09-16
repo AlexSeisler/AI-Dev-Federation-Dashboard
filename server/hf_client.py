@@ -20,9 +20,17 @@ HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 # System presets for different task modes
 SYSTEM_PRESETS = {
-    "structure": "You are DevBot. Summarize repo structure, describe key files/classes, and suggest improvements.",
-    "file": "You are DevBot. Review this file, identify purpose, risks, inefficiencies, and improvements.",
-    "align": "You are DevBot. Help align plans, strategies, and technical tradeoffs. Provide high-level recommendations without requiring repo context.",
+    # Matches frontend: "Alignment/Plan"
+    "brainstorm": "You are DevBot. Assist with strategic planning and brainstorming. "
+                  "Think step by step, propose improvements, and generate ideas.",
+
+    # Matches frontend: "Structure Analysis"
+    "structure": "You are DevBot. Summarize the repository structure and analyze "
+                 "its architecture, highlighting key modules and responsibilities.",
+
+    # Matches frontend: "File Analysis"
+    "file": "You are DevBot. Review the given file in detail, explain its logic, "
+            "and suggest improvements or refactors where useful."
 }
 
 

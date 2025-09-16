@@ -108,13 +108,18 @@ def login(user: UserLogin, db: Session = Depends(database.get_db)):
         if not pwd_context.verify(user.password, db_user.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-        if db_user.status != "approved":
+        # ✅ Allow pending users to log in, but mark them as such
+        if db_user.status not in ["approved", "pending"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is not approved yet"
+                detail=f"User account is {db_user.status} and cannot log in."
             )
 
-        token_data = {"sub": db_user.email, "role": db_user.role}
+        token_data = {
+            "sub": db_user.email,
+            "role": db_user.role,
+            "status": db_user.status   # include status in JWT
+        }
         access_token = create_access_token(token_data)
 
         # Log login
@@ -124,6 +129,10 @@ def login(user: UserLogin, db: Session = Depends(database.get_db)):
             "access_token": access_token,
             "token_type": "bearer",
             "role": db_user.role,
+            "status": db_user.status,   # ✅ frontend can check this
+            "message": "Logged in with demo access — awaiting admin approval."
+                      if db_user.status == "pending"
+                      else "Login successful."
         }
 
     except HTTPException:
