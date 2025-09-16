@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from datetime import datetime
+import logging
 
 from server import database, models
 from server.jwt_utils import create_access_token, decode_access_token
@@ -15,6 +16,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 token scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 
 # -------- Schemas --------
@@ -55,56 +59,81 @@ def log_action(db: Session, user_id: int, action: str):
 # -------- Endpoints --------
 @router.post("/signup")
 def signup(user: UserSignup, db: Session = Depends(database.get_db)):
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+    try:
+        existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered. Please log in."
+            )
+
+        hashed_pw = pwd_context.hash(user.password)
+        new_user = models.User(
+            email=user.email,
+            password_hash=hashed_pw,
+            role="member",
+            status="pending"
         )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
 
-    hashed_pw = pwd_context.hash(user.password)
-    new_user = models.User(
-        email=user.email,
-        password_hash=hashed_pw,
-        role="member",
-        status="pending"
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+        return {
+            "id": new_user.id,
+            "email": new_user.email,
+            "role": new_user.role,
+            "status": new_user.status,
+            "created_at": new_user.created_at,
+            "message": "Account created! Awaiting admin approval."
+        }
 
-    return {
-        "id": new_user.id,
-        "email": new_user.email,
-        "role": new_user.role,
-        "status": new_user.status,
-        "created_at": new_user.created_at,
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Signup failed for {user.email}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Signup failed due to server error. Please try again."
+        )
 
 
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(database.get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if not db_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    try:
+        db_user = db.query(models.User).filter(models.User.email == user.email).first()
+        if not db_user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    if not pwd_context.verify(user.password, db_user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        if not pwd_context.verify(user.password, db_user.password_hash):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    if db_user.status != "approved":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not approved")
+        if db_user.status != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is not approved yet"
+            )
 
-    token_data = {"sub": db_user.email, "role": db_user.role}
-    access_token = create_access_token(token_data)
+        token_data = {"sub": db_user.email, "role": db_user.role}
+        access_token = create_access_token(token_data)
 
-    # Log login
-    log_action(db, db_user.id, "login")
+        # Log login
+        log_action(db, db_user.id, "login")
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "role": db_user.role,
-    }
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": db_user.role,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login failed for {user.email}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login failed due to server error. Please try again."
+        )
 
 
 @router.get("/me")

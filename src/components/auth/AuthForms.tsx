@@ -16,23 +16,25 @@ export const AuthForms: React.FC = () => {
     setMessage(null);
 
     try {
-      const result = isLogin 
+      const result = isLogin
         ? await login(email, password)
         : await signup(email, password);
 
       setMessage({
         type: result.success ? 'success' : 'error',
-        text: result.message
+        text: result.message || (result.success ? '' : 'Authentication failed')
       });
 
       if (result.success) {
         setEmail('');
         setPassword('');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Auth error:", error);
+      // Catch network/JSON parse errors
       setMessage({
         type: 'error',
-        text: 'An unexpected error occurred'
+        text: error?.message || 'Unexpected error during authentication'
       });
     } finally {
       setIsLoading(false);
@@ -56,11 +58,13 @@ export const AuthForms: React.FC = () => {
           </div>
 
           {message && (
-            <div className={`mb-6 p-4 rounded-lg border flex items-center gap-3 ${
-              message.type === 'success' 
-                ? 'bg-green-900/20 border-green-500/30 text-green-300'
-                : 'bg-red-900/20 border-red-500/30 text-red-300'
-            }`}>
+            <div
+              className={`mb-6 p-4 rounded-lg border flex items-center gap-3 ${
+                message.type === 'success'
+                  ? 'bg-green-900/20 border-green-500/30 text-green-300'
+                  : 'bg-red-900/20 border-red-500/30 text-red-300'
+              }`}
+            >
               {message.type === 'success' ? (
                 <CheckCircle className="w-5 h-5 flex-shrink-0" />
               ) : (
@@ -121,9 +125,7 @@ export const AuthForms: React.FC = () => {
                   Processing...
                 </>
               ) : (
-                <>
-                  {isLogin ? 'Sign In' : 'Create Account'}
-                </>
+                <>{isLogin ? 'Sign In' : 'Create Account'}</>
               )}
             </button>
           </form>
@@ -138,17 +140,16 @@ export const AuthForms: React.FC = () => {
               }}
               className="text-blue-400 hover:text-blue-300 text-sm transition-colors duration-200"
             >
-              {isLogin 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
+              {isLogin
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
             </button>
           </div>
 
           {!isLogin && (
             <div className="mt-6 p-4 bg-slate-700/30 rounded-lg border border-slate-600/30">
               <p className="text-xs text-slate-400 leading-relaxed">
-                <strong className="text-slate-300">Note:</strong> New accounts require admin approval. 
+                <strong className="text-slate-300">Note:</strong> New accounts require admin approval.
                 You'll receive access once your account is reviewed and approved by an administrator.
               </p>
             </div>
