@@ -133,18 +133,25 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
 @router.post("/run/{preset}")
 async def run_task(
     preset: str,
-    context: dict = None,   # ✅ accept dict now (from frontend JSON body)
+    request: dict,   # <-- instead of just `context: str`
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Start a new runner task."""
     user_id = current_user.get("id")
 
-    # Normalize context (string for brainstorm, JSON for others)
-    if isinstance(context, dict):
-        stored_context = json.dumps(context)  # store as JSON string
+    # Extract clean context
+    context = ""
+    if preset == "brainstorm":
+        # ✅ Pass user text directly
+        context = request.get("context", "").strip()
     else:
-        stored_context = context or ""
+        # ✅ Repo/file presets use JSON
+        ctx = request.get("context", {})
+        if isinstance(ctx, dict):
+            context = json.dumps(ctx)
+        else:
+            context = str(ctx)
 
     # Create DB task
     task = Task(
@@ -152,26 +159,17 @@ async def run_task(
         type=preset,
         status="pending",
         created_at=datetime.utcnow(),
-        context=stored_context,
+        context=context  # ✅ store clean context
     )
     db.add(task)
     db.commit()
     db.refresh(task)
 
-    # ✅ Save user input into memory
-    if stored_context:
-        db.add(Memory(
-            user_id=user_id,
-            role="user",
-            content=stored_context,
-            created_at=datetime.utcnow()
-        ))
-        db.commit()
-
     log_queue = asyncio.Queue()
-    asyncio.create_task(run_hf_task(task, preset, stored_context, db, user_id, log_queue))
+    asyncio.create_task(run_hf_task(task, preset, context, db, user_id, log_queue))
 
     return {"task_id": task.id, "status": "started"}
+
 
 
 
