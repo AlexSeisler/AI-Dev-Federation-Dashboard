@@ -127,6 +127,15 @@ export const DevBotView: React.FC = () => {
 
     const token = getToken();
     if (!token) {
+      setError('Authentication required. Please sign up or log in.');
+      return;
+    }
+
+    // ✅ Allow pending users into demo mode
+    if (user?.status === 'pending') {
+      console.log('User is pending — running in demo mode.');
+      // You could also set a UI banner flag here if you want
+    } else if (!user) {
       setError('Authentication required. Please log in.');
       return;
     }
@@ -171,6 +180,7 @@ export const DevBotView: React.FC = () => {
       setIsRunning(false);
     }
   };
+
 
   const streamTaskLogs = (taskId: number, token: string) => {
     // Close existing connection
@@ -369,9 +379,11 @@ export const DevBotView: React.FC = () => {
               onClick={startTask}
               disabled={!selectedPreset || isRunning || !user}
               className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-3 ${
-                selectedPreset && !isRunning && user
-                  ? 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-lg shadow-green-500/20'
-                  : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                !selectedPreset || isRunning || !user
+                  ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                  : user?.status === 'pending'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg shadow-purple-500/20'
+                    : 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-lg shadow-green-500/20'
               }`}
             >
               {isRunning ? (
@@ -382,10 +394,11 @@ export const DevBotView: React.FC = () => {
               ) : (
                 <>
                   <Play className="w-5 h-5" />
-                  Execute Task
+                  {user?.status === 'pending' ? 'Run Demo Task' : 'Execute Task'}
                 </>
               )}
             </button>
+
 
             {!user && (
               <div className="text-center text-slate-400 text-sm">
