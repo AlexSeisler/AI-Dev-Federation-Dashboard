@@ -107,7 +107,7 @@ export const DevBotView: React.FC = () => {
       const contextData: any = {};
       if (presetConfig.needsRepo) contextData.repo_id = repoId;
       if (presetConfig.needsFile) contextData.file_path = filePath;
-      body.context = JSON.stringify(contextData);
+      body.context = contextData;   // ✅ send object, not JSON string
     }
 
     return body;
