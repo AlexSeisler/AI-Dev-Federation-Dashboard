@@ -47,20 +47,36 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
         repo_context = ""
 
         # Parse context JSON if provided (deduplication fix ✅)
-        context_data = {}
+        # --- Normalize user context (dedup + flatten) ---
+        user_context_str = ""
         if context:
             try:
-                context_data = json.loads(context) if isinstance(context, str) else context
+                # If stored as JSON string, parse it
+                parsed = json.loads(context) if isinstance(context, str) else context
+                if isinstance(parsed, dict):
+                    # Prefer "raw" field if exists
+                    if "raw" in parsed:
+                        user_context_str = str(parsed["raw"])
+                    elif "context" in parsed:
+                        user_context_str = str(parsed["context"])
+                    elif "file_path" in parsed or "repo_id" in parsed:
+                        user_context_str = f"Repo: {parsed.get('repo_id','')}, File: {parsed.get('file_path','')}"
+                    else:
+                        user_context_str = json.dumps(parsed)
+                else:
+                    user_context_str = str(parsed)
             except Exception:
-                context_data = {"raw": context}
+                user_context_str = str(context)
 
-        # Ensure context is not wrapped twice ✅
-        user_context = context_data.get("raw") if "raw" in context_data else context_data
+        # Fallback if empty
+        if not user_context_str:
+            user_context_str = "No user input provided."
+
 
         # Resolve repo owner/repo (default fallback)
         owner, repo = "AlexSeisler", "AI-Dev-Federation-Dashboard"
-        if isinstance(user_context, dict) and "repo_id" in user_context and "/" in user_context["repo_id"]:
-            owner, repo = user_context["repo_id"].split("/", 1)
+        if isinstance(user_context_str, dict) and "repo_id" in user_context_str and "/" in user_context_str["repo_id"]:
+            owner, repo = user_context_str["repo_id"].split("/", 1)
 
         # --- Handle presets dynamically ---
         if preset == "structure":
@@ -69,7 +85,7 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             repo_context += f"Repo Tree:\n{json.dumps(tree, indent=2)}\n"
 
         elif preset == "file":
-            file_path = user_context.get("file_path", "src/App.tsx") if isinstance(user_context, dict) else "src/App.tsx"
+            file_path = user_context_str.get("file_path", "src/App.tsx") if isinstance(user_context_str, dict) else "src/App.tsx"
             log_event(db, task, f"📂 Fetching file {file_path}...", log_queue)
             code = github_service.get_file(owner, repo, file_path)
             repo_context += f"File: {file_path}\n\n{code[:5000]}...\n"
@@ -100,8 +116,8 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
             for m in memory_entries if m.content
         ]
 
-        # ✅ Pass clean user_context (no duplication) to HF
-        response_text = run_completion(preset, user_context, memory_context, repo_context)
+        # ✅ Pass clean user_context_str (no duplication) to HF
+        response_text = run_completion(preset, user_context_str, memory_context, repo_context)
 
         # Persist to memory (assistant role)
         memory_entry = Memory(

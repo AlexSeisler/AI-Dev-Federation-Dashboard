@@ -70,27 +70,29 @@ def _query_hf(payload: Dict[str, Any], retries: int = 3, backoff: int = 2, timeo
 def _extract_response(result: Dict[str, Any]) -> str:
     """Normalize Hugging Face response into a clean string."""
     try:
-        # OpenAI-style: choices[0].message.content
-        if "choices" in result and "message" in result["choices"][0]:
-            return result["choices"][0]["message"]["content"]
+        # OpenAI/Router-style
+        if "choices" in result:
+            choice = result["choices"][0]
+            if "message" in choice and "content" in choice["message"]:
+                return choice["message"]["content"]
+            if "delta" in choice and "content" in choice["delta"]:
+                return choice["delta"]["content"]
+            if "text" in choice:
+                return choice["text"]
 
-        # HF-style: choices[0].delta.content (streaming chunks)
-        if "choices" in result and "delta" in result["choices"][0]:
-            return result["choices"][0]["delta"].get("content", "")
-
-        # HF text completion: choices[0].text
-        if "choices" in result and "text" in result["choices"][0]:
-            return result["choices"][0]["text"]
-
-        # Fallback: generated_text
+        # Standard HF inference API
         if "generated_text" in result:
             return result["generated_text"]
+
+        # Some models return a list of generated_texts
+        if isinstance(result, list) and "generated_text" in result[0]:
+            return result[0]["generated_text"]
 
     except Exception as e:
         print(f"❌ Failed to extract response: {e}")
 
-    # Debug: dump response if schema unknown
-    print(f"⚠️ Unexpected HF API response format: {result}")
+    # Debug fallback
+    print(f"⚠️ Unexpected HF API response format: {json.dumps(result)[:500]}")
     return "[Error: unexpected response format]"
 
 
@@ -114,19 +116,26 @@ def run_completion(
     if repo_context:
         messages.append({"role": "system", "content": f"Repo Context:\n{repo_context}"})
 
-    messages.append({"role": "user", "content": context})
+    # ✅ Ensure context is always a string
+    user_message = str(context) if context is not None else ""
+    messages.append({"role": "user", "content": user_message})
 
     # Add prior memory if present
     if memory:
         for m in memory[-5:]:  # only keep last 5 entries
-            messages.append({"role": m["role"], "content": m["content"]})
+            messages.append({"role": m["role"], "content": str(m["content"])})
 
     payload = {
         "model": HF_MODEL,
         "messages": messages,
         "max_tokens": max_tokens or HF_MAX_TOKENS,
     }
-    print("🔍 HF Final Payload:", json.dumps(payload, indent=2)[:5000])
+
+    # ✅ More explicit debug logging
+    print("🔍 HF Final Payload (cleaned):")
+    for msg in messages:
+        print(f" - {msg['role']}: {repr(msg['content'])[:200]}")  # trim long entries
+    print("---- End Payload ----")
 
     result = _query_hf(payload)
     return _extract_response(result)

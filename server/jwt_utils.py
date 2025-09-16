@@ -60,3 +60,12 @@ def get_current_user(
         "email": user.email,
         "role": user.role,
     }
+def decode_token(token: str) -> dict:
+    """
+    Manually decode a JWT token (used for query param auth in SSE).
+    Returns payload dict or raises HTTPException on failure.
+    """
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return payload
