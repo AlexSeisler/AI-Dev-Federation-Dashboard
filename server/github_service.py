@@ -2,7 +2,11 @@ import requests
 from requests.exceptions import RequestException
 from fastapi import APIRouter, HTTPException
 from typing import Optional
+import base64
+import traceback
+
 from server.config import settings
+from server.debug import debug_log  # ✅ unified debug logger
 
 router = APIRouter(prefix="/repo", tags=["repo"])
 
@@ -27,16 +31,18 @@ class GitHubService:
             scheme = "Bearer" if self.tokens["finegrained"] else "token"
             headers["Authorization"] = f"{scheme} {token}"
 
-        print(f"[GITHUB API REQUEST] {method} {url} (auth={use_auth})")
+        debug_log("GitHub API request", context={"method": method, "url": url, "use_auth": use_auth})
         try:
             response = requests.request(method, url, headers=headers, timeout=self.timeout, **kwargs)
-            print(f"[GITHUB API STATUS] {response.status_code}")
+            debug_log("GitHub API response", context={"status_code": response.status_code})
+
             if response.status_code != 200:
-                print(f"[GITHUB API BODY] {response.text[:500]}")
+                debug_log("GitHub API non-200 body", context={"body": response.text[:500]})
+
             response.raise_for_status()
             return response.json()
         except RequestException as e:
-            print(f"[GITHUB API ERROR] {method} {url} failed: {str(e)}")
+            debug_log("GitHub API request error", e, context={"method": method, "url": url})
             raise
 
     def get_repo_tree(
@@ -49,29 +55,27 @@ class GitHubService:
         limit=None,
         offset=None,
     ):
-        # ✅ Step 1: Repo metadata
         repo_url = f"{self.base_url}/repos/{owner}/{repo}"
         repo_data = self._request("GET", repo_url, use_auth=False)
         default_branch = repo_data.get("default_branch", "main")
 
         if not branch:
             branch = default_branch
-        print(f"[INFO] Using branch: {branch}")
+        debug_log("Resolved branch", context={"branch": branch})
 
-        # ✅ Step 2: Resolve SHA
         sha = None
         try:
             commit_url = f"{self.base_url}/repos/{owner}/{repo}/commits/{branch}"
             commit_data = self._request("GET", commit_url, use_auth=False)
             sha = commit_data["sha"]
         except Exception as e1:
-            print(f"[WARN] commit lookup failed: {e1}")
+            debug_log("Commit lookup failed", e1)
             try:
                 branch_url = f"{self.base_url}/repos/{owner}/{repo}/branches/{branch}"
                 branch_data = self._request("GET", branch_url, use_auth=False)
                 sha = branch_data["commit"]["sha"]
             except Exception as e2:
-                print(f"[WARN] branch lookup failed: {e2}")
+                debug_log("Branch lookup failed", e2)
                 ref_url = f"{self.base_url}/repos/{owner}/{repo}/git/refs/heads/{branch}"
                 ref_data = self._request("GET", ref_url, use_auth=False)
                 sha = ref_data["object"]["sha"]
@@ -79,22 +83,20 @@ class GitHubService:
         if not sha:
             raise RuntimeError(f"Could not resolve branch {branch} to SHA")
 
-        # ✅ Step 3: Get tree
         url = f"{self.base_url}/repos/{owner}/{repo}/git/trees/{sha}?recursive={1 if recursive else 0}"
         raw_tree = self._request("GET", url, use_auth=False).get("tree", [])
 
-        # ✅ Step 4: Apply filters
         if path_prefix:
             raw_tree = [item for item in raw_tree if item["path"].startswith(path_prefix)]
         if offset is not None and limit is not None:
             raw_tree = raw_tree[offset:offset + limit]
 
-        # ✅ Step 5: Condense
         condensed = [
             {"path": item["path"], "type": item["type"], "size": item.get("size", 0)}
             for item in raw_tree
         ]
 
+        debug_log("Repo tree retrieved", context={"repo": f"{owner}/{repo}", "count": len(condensed)})
         return {
             "repo": f"{owner}/{repo}",
             "branch": branch,
@@ -103,12 +105,7 @@ class GitHubService:
         }
 
     def get_file_content(self, owner, repo, path, branch=None, max_chars: int = 20000):
-        """
-        Fetch raw file content with a safety limit (~5000 tokens).
-        Truncates from the bottom if the file is too long.
-        """
         if not branch:
-            # resolve default branch
             repo_url = f"{self.base_url}/repos/{owner}/{repo}"
             repo_data = self._request("GET", repo_url, use_auth=False)
             branch = repo_data.get("default_branch", "main")
@@ -116,13 +113,13 @@ class GitHubService:
         url = f"{self.base_url}/repos/{owner}/{repo}/contents/{path}?ref={branch}"
         file_data = self._request("GET", url, use_auth=False)
 
-        import base64
         content = base64.b64decode(file_data["content"]).decode("utf-8", errors="ignore")
 
         if len(content) > max_chars:
-            print(f"[WARN] Truncating file {path}: {len(content)} → {max_chars} chars")
+            debug_log("Truncating file content", context={"path": path, "original_size": len(content), "truncated_to": max_chars})
             content = content[:max_chars]
 
+        debug_log("File content retrieved", context={"repo": f"{owner}/{repo}", "path": path, "size": len(content)})
         return {
             "repo": f"{owner}/{repo}",
             "branch": branch,
@@ -145,7 +142,7 @@ async def get_repo_tree(
         service = GitHubService()
         return service.get_repo_tree(owner, repo, branch, recursive, path_prefix)
     except Exception as e:
-        import traceback
+        debug_log("Failed to retrieve repo tree", e, context={"repo_id": repo_id, "branch": branch})
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to retrieve repo tree: {str(e)}")
 
@@ -161,6 +158,6 @@ async def get_repo_file(
         service = GitHubService()
         return service.get_file_content(owner, repo, path, branch)
     except Exception as e:
-        import traceback
+        debug_log("Failed to retrieve file", e, context={"repo_id": repo_id, "path": path, "branch": branch})
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to retrieve file: {str(e)}")

@@ -195,10 +195,11 @@ export const DevBotView: React.FC = () => {
 
     eventSource.onmessage = (event) => {
       try {
-        const logData = JSON.parse(event.data);
-        setLogs(prev => [...prev, logData]);
-      } catch (err) {
-        console.error('Failed to parse log data:', err);
+        const data = JSON.parse(event.data);
+        setLogs(prev => [...prev, data]);
+      } catch {
+        // fallback: wrap plain text as a log
+        setLogs(prev => [...prev, { event: event.data, timestamp: new Date().toISOString() }]);
       }
     };
 
@@ -233,9 +234,14 @@ export const DevBotView: React.FC = () => {
         setLogs(task.logs || []);
         
         // Extract output from logs or context
-        const outputLog = task.logs?.find((log: LogEntry) => 
-          log.event.includes('HF Response:') || log.event.includes('✅')
+        const outputLog = [...(task.logs || [])].reverse().find(
+          (log: LogEntry) => log.event.includes('HF Response:')
         );
+
+        if (outputLog) {
+          const clean = outputLog.event.split('HF Response:')[1]?.trim();
+          setOutput(clean || outputLog.event);
+        }
         if (outputLog) {
           setOutput(outputLog.event.replace('✅ HF Response: ', ''));
         }
