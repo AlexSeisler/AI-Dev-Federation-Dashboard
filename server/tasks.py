@@ -1,17 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Security
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
 import asyncio
 import json
 import traceback
-from typing import Optional
 
 from server.database import get_db
 from server.models import Task, UserLog, Memory
 from server.github_service import GitHubService
 from server.hf_client import run_completion
-from server.jwt_utils import get_current_user, decode_token, oauth2_scheme
+from server.jwt_utils import get_current_user, decode_token
 from server.debug import debug_log  # ✅ new
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -19,26 +18,44 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 # Initialize GitHub service
 github_service = GitHubService()
 
+# ✅ global dict to hold per-task queues
+task_queues: dict[int, asyncio.Queue] = {}
+
 # --- Helpers --- #
 
 async def stream_logs(log_queue: asyncio.Queue):
-    """Helper to stream logs via SSE."""
+    """Helper to stream logs via SSE with initial heartbeat."""
+    # ✅ send heartbeat immediately
+    yield 'data: {"event": "connected"}\n\n'
+
     while True:
         message = await log_queue.get()
         if message is None:
             break
         yield f"data: {json.dumps(message)}\n\n"
 
-def log_event(db: Session, task: Task, event: str, log_queue: asyncio.Queue):
+
+def log_event(db: Session, task: Task, event: str, log_queue: asyncio.Queue | None = None):
     """Persist and stream log events."""
     log_entry = UserLog(task_id=task.id, response=event, timestamp=datetime.utcnow())
     db.add(log_entry)
     db.commit()
     db.refresh(log_entry)
 
-    asyncio.create_task(
-        log_queue.put({"event": event, "timestamp": log_entry.timestamp.isoformat()})
-    )
+    # ✅ Stream into provided queue
+    if log_queue:
+        asyncio.create_task(
+            log_queue.put({"event": event, "timestamp": log_entry.timestamp.isoformat()})
+        )
+
+    # ✅ Also stream into global queue if it exists
+    if task.id in task_queues:
+        try:
+            asyncio.create_task(
+                task_queues[task.id].put({"event": event, "timestamp": log_entry.timestamp.isoformat()})
+            )
+        except Exception as e:
+            debug_log("Failed to enqueue SSE log", e)
 
     # ✅ mirror to debug log
     debug_log(f"Task {task.id} - {event}", context={"task_id": task.id, "event": event})
@@ -128,7 +145,13 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
         ]
         debug_log("Loaded memory context", context={"entries": len(memory_context)})
 
-        response_text = run_completion(preset, user_context_str, memory_context, repo_context)
+        # Ensure context is plain text (no double-wrapped JSON)
+        clean_context = user_context_str
+        if isinstance(user_context_str, dict):
+            clean_context = user_context_str.get("raw") or user_context_str.get("context") or json.dumps(user_context_str)
+
+        response_text = run_completion(preset, clean_context, memory_context, repo_context)
+
         debug_log("HF response received", context={"len": len(response_text)})
 
         # Save assistant response to memory
@@ -158,6 +181,8 @@ async def run_hf_task(task: Task, preset: str, context: str, db: Session, user_i
 
     finally:
         await log_queue.put(None)
+        if task.id in task_queues:
+            await task_queues[task.id].put(None)
         debug_log("Task finished (cleanup)", context={"task_id": task.id})
 
 # --- API Routes --- #
@@ -173,7 +198,13 @@ async def run_task(
     debug_log("Run task request", context={"preset": preset, "user": current_user.get("id")})
     user_id = current_user.get("id")
 
-    stored_context = json.dumps(context) if isinstance(context, dict) else (context or "")
+    # Store raw context as JSON only if needed
+    if isinstance(context, dict):
+        stored_context = json.dumps(context)
+    elif isinstance(context, str):
+        stored_context = context
+    else:
+        stored_context = ""
 
     task = Task(
         user_id=user_id,
@@ -198,105 +229,50 @@ async def run_task(
         debug_log("User context persisted", context={"task_id": task.id})
 
     log_queue = asyncio.Queue()
+    task_queues[task.id] = log_queue  # ✅ save queue globally
     asyncio.create_task(run_hf_task(task, preset, stored_context, db, user_id, log_queue))
 
     return {"task_id": task.id, "status": "started"}
 
+
 @router.get("/{task_id}/stream")
-async def stream_task(
-    task_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-):
+async def stream_task(task_id: int, request: Request, db: Session = Depends(get_db)):
     """Stream logs for a running task with query param JWT fallback."""
     token = request.query_params.get("token")
     debug_log("Stream request", context={"task_id": task_id, "has_token": bool(token)})
     current_user = None
 
     if token:
-        try:
-            current_user = decode_token(token)
-            debug_log("Stream JWT token decoded", context={"task_id": task_id})
-        except Exception as e:
-            debug_log("Invalid stream token", e)
-            raise HTTPException(status_code=401, detail="Invalid token")
+        current_user = decode_token(token)
+        debug_log("Stream JWT token decoded", context={"task_id": task_id})
     else:
         current_user = await get_current_user(request)
 
     if not current_user:
-        debug_log("Unauthorized stream attempt", context={"task_id": task_id})
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
-        debug_log("Task not found (stream)", context={"task_id": task_id})
         raise HTTPException(status_code=404, detail="Task not found")
 
-    log_queue = asyncio.Queue()
+    # ✅ Use the global queue created in run_task
+    if task_id not in task_queues:
+        task_queues[task_id] = asyncio.Queue()
+    log_queue = task_queues[task_id]
 
-    # Replay existing logs
-    existing_logs = db.query(UserLog).filter(UserLog.task_id == task_id).all()
-    for log in existing_logs:
-        await log_queue.put({"event": log.response, "timestamp": log.timestamp.isoformat()})
-    debug_log("Replayed existing logs", context={"task_id": task_id, "count": len(existing_logs)})
+    # ✅ Generator: replay old logs first, then stream new ones
+    async def event_generator():
+        # replay existing logs
+        existing_logs = (
+            db.query(UserLog).filter(UserLog.task_id == task_id).order_by(UserLog.timestamp.asc()).all()
+        )
+        for log in existing_logs:
+            yield f"data: {json.dumps({'event': log.response, 'timestamp': log.timestamp.isoformat()})}\n\n"
 
-    return StreamingResponse(stream_logs(log_queue), media_type="text/event-stream")
+        debug_log("Replayed existing logs", context={"task_id": task_id, "count": len(existing_logs)})
 
-@router.get("/{task_id}")
-async def get_task(
-    task_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme),
-):
-    """Fetch task + logs with query param JWT fallback + debug mode."""
-    query_token = request.query_params.get("token")
-    debug_flag = request.query_params.get("debug") == "true"
-    debug_log("Get task request", context={"task_id": task_id, "debug": debug_flag})
-    current_user = None
+        # now stream live logs
+        async for message in stream_logs(log_queue):
+            yield message
 
-    if query_token:
-        try:
-            current_user = decode_token(query_token)
-            debug_log("JWT query param decoded", context={"task_id": task_id})
-        except Exception as e:
-            debug_log("Invalid JWT query param", e)
-            raise HTTPException(status_code=401, detail="Invalid token")
-    elif token:
-        current_user = decode_token(token)
-        debug_log("JWT header decoded", context={"task_id": task_id})
-
-    if not current_user:
-        debug_log("Unauthorized get_task attempt", context={"task_id": task_id})
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    task = db.query(Task).filter(Task.id == task_id).first()
-    if not task:
-        debug_log("Task not found", context={"task_id": task_id})
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    logs = db.query(UserLog).filter(UserLog.task_id == task_id).order_by(UserLog.timestamp.asc()).all()
-    debug_log("Logs fetched", context={"task_id": task_id, "count": len(logs)})
-
-    # ✅ Debug mode → return raw DB dicts
-    if debug_flag:
-        return {
-            "task_raw": task.__dict__,
-            "logs_raw": [l.__dict__ for l in logs],
-        }
-
-    # Normal clean response
-    return {
-        "task": {
-            "id": task.id,
-            "user_id": task.user_id,
-            "type": task.type,
-            "status": task.status,
-            "created_at": task.created_at.isoformat() if task.created_at else None,
-            "context": task.context,
-        },
-        "logs": [
-            {"event": log.response, "timestamp": log.timestamp.isoformat() if log.timestamp else None}
-            for log in logs
-        ],
-    }
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

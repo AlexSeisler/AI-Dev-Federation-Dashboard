@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, ChevronDown, Play, Terminal, FileText, Package, AlertCircle, Copy, CheckCircle, Clock } from 'lucide-react';
+import { Bot, Play, Terminal, FileText, Package, AlertCircle, Copy, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Task {
@@ -52,7 +52,6 @@ export const DevBotView: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [output, setOutput] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [pastTasks, setPastTasks] = useState<Task[]>([]);
   const [showColdStartMessage, setShowColdStartMessage] = useState(false);
   
   const logConsoleRef = useRef<HTMLDivElement>(null);
@@ -75,6 +74,62 @@ export const DevBotView: React.FC = () => {
   }, []);
 
   const getToken = () => localStorage.getItem('access_token');
+  const refreshToken = async (expiredToken: string): Promise<string | null> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: expiredToken }),
+      });
+
+      if (!response.ok) {
+        console.error("Token refresh failed:", await response.text());
+        return null;
+      }
+
+      const data = await response.json();
+      localStorage.setItem("access_token", data.access_token);
+      console.log("🔄 Token refreshed");
+      return data.access_token;
+    } catch (err) {
+      console.error("Refresh request error:", err);
+      return null;
+    }
+  };
+
+  const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Response> => {
+    let token = getToken();
+    if (!token) throw new Error("No token available");
+
+    // Refresh if expired
+    if (isTokenExpired(token)) {
+      console.warn("JWT expired — refreshing before API call...");
+      const newToken = await refreshToken(token);
+      if (!newToken) throw new Error("Session expired, please log in again");
+      token = newToken;
+    }
+
+    const authHeaders = {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    };
+
+    const response = await fetch(url, { ...options, headers: authHeaders });
+
+    // Handle unauthorized → try refresh once
+    if (response.status === 401) {
+      console.warn("401 received — trying token refresh...");
+      const newToken = await refreshToken(token);
+      if (!newToken) throw new Error("Session expired, please log in again");
+
+      return fetch(url, {
+        ...options,
+        headers: { ...authHeaders, Authorization: `Bearer ${newToken}` },
+      });
+    }
+
+    return response;
+  };
 
   const validateInputs = (preset: string): string | null => {
     const presetConfig = taskPresets.find(p => p.id === preset);
@@ -107,7 +162,7 @@ export const DevBotView: React.FC = () => {
       const contextData: any = {};
       if (presetConfig.needsRepo) contextData.repo_id = repoId;
       if (presetConfig.needsFile) contextData.file_path = filePath;
-      body.context = contextData;   // ✅ send object, not JSON string
+      body.context = contextData;
     }
 
     return body;
@@ -131,10 +186,8 @@ export const DevBotView: React.FC = () => {
       return;
     }
 
-    // ✅ Allow pending users into demo mode
     if (user?.status === 'pending') {
       console.log('User is pending — running in demo mode.');
-      // You could also set a UI banner flag here if you want
     } else if (!user) {
       setError('Authentication required. Please log in.');
       return;
@@ -149,12 +202,9 @@ export const DevBotView: React.FC = () => {
     try {
       const requestBody = buildRequestBody(selectedPreset);
       
-      const response = await fetch(`${API_URL}/tasks/run/${selectedPreset}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await fetchWithAuth(`${API_URL}/tasks/run/${selectedPreset}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
 
@@ -171,8 +221,8 @@ export const DevBotView: React.FC = () => {
       const data = await response.json();
       const taskId = data.task_id;
 
-      // Start streaming logs
-      streamTaskLogs(taskId, token);
+      // ✅ Always fetch token fresh for SSE
+      streamTaskLogs(taskId);
 
     } catch (err) {
       console.error('Task start failed:', err);
@@ -181,59 +231,77 @@ export const DevBotView: React.FC = () => {
     }
   };
 
+  function isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch (e) {
+      console.error("Invalid JWT:", e);
+      return true;
+    }
+  }
 
-  const streamTaskLogs = (taskId: number, token: string) => {
-    // Close existing connection
+  const streamTaskLogs = async (taskId: number) => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
 
+    let token = getToken();
+    if (!token) {
+      setError("No token available. Please log in again.");
+      setIsRunning(false);
+      return;
+    }
+
+    if (isTokenExpired(token)) {
+      console.warn("JWT expired — attempting refresh...");
+      const newToken = await refreshToken(token);
+      if (!newToken) {
+        setError("Session expired. Please log in again.");
+        setIsRunning(false);
+        return;
+      }
+      token = newToken;
+    }
+
     const eventSource = new EventSource(`${API_URL}/tasks/${taskId}/stream?token=${token}`);
-
-
     eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {
+      console.log("🔥 SSE message:", event.data);
       try {
         const data = JSON.parse(event.data);
-        setLogs(prev => [...prev, data]);
+        setLogs((prev) => [...prev, data]);
       } catch {
-        // fallback: wrap plain text as a log
-        setLogs(prev => [...prev, { event: event.data, timestamp: new Date().toISOString() }]);
+        setLogs((prev) => [
+          ...prev,
+          { event: event.data, timestamp: new Date().toISOString() },
+        ]);
       }
     };
 
-    eventSource.onerror = (event) => {
-      console.error('SSE error:', event);
+    eventSource.onerror = () => {
+      console.error("SSE error");
       eventSource.close();
-      
-      // Fetch final task result
-      fetchTaskResult(taskId, token);
+      fetchTaskResult(taskId);
     };
 
-    // Fallback: check task completion after 30 seconds
     setTimeout(() => {
       if (eventSource.readyState === EventSource.OPEN) {
         eventSource.close();
-        fetchTaskResult(taskId, token);
+        fetchTaskResult(taskId);
       }
     }, 30000);
   };
 
-  const fetchTaskResult = async (taskId: number, token: string) => {
+  const fetchTaskResult = async (taskId: number) => {
     try {
-      const response = await fetch(`${API_URL}/tasks/${taskId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
+      const response = await fetchWithAuth(`${API_URL}/tasks/${taskId}`);
       if (response.ok) {
         const task = await response.json();
         setCurrentTask(task);
         setLogs(task.logs || []);
         
-        // Extract output from logs or context
         const outputLog = [...(task.logs || [])].reverse().find(
           (log: LogEntry) => log.event.includes('HF Response:')
         );
@@ -257,7 +325,6 @@ export const DevBotView: React.FC = () => {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      // Could add a toast notification here
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
     }
@@ -268,6 +335,7 @@ export const DevBotView: React.FC = () => {
   return (
     <div className="h-full p-6 overflow-auto bg-slate-900/20">
       <div className="max-w-6xl mx-auto">
+        {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-xl border border-green-500/30">
@@ -279,7 +347,6 @@ export const DevBotView: React.FC = () => {
             </div>
           </div>
 
-          {/* Cold Start Message */}
           {showColdStartMessage && (
             <div className="mb-4 p-4 bg-orange-900/20 border border-orange-500/30 rounded-lg flex items-center gap-3">
               <Clock className="w-5 h-5 text-orange-400 animate-pulse" />
@@ -287,7 +354,6 @@ export const DevBotView: React.FC = () => {
             </div>
           )}
 
-          {/* Error Message */}
           {error && (
             <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-400" />
@@ -296,6 +362,7 @@ export const DevBotView: React.FC = () => {
           )}
         </div>
 
+        {/* Main Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Control Panel */}
           <div className="lg:col-span-1 space-y-6">
@@ -321,7 +388,7 @@ export const DevBotView: React.FC = () => {
               </div>
             </div>
 
-            {/* Adaptive Input Fields */}
+            {/* Config Inputs */}
             {selectedPresetConfig && (
               <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700/50">
                 <h3 className="text-white font-semibold mb-3">Configuration</h3>
@@ -402,7 +469,6 @@ export const DevBotView: React.FC = () => {
               )}
             </button>
 
-
             {!user && (
               <div className="text-center text-slate-400 text-sm">
                 Please log in to run tasks
@@ -410,9 +476,9 @@ export const DevBotView: React.FC = () => {
             )}
           </div>
 
-          {/* Content Area */}
+          {/* Logs + Output */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Log Stream */}
+            {/* Logs */}
             <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 overflow-hidden">
               <div className="flex items-center gap-3 px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
                 <Terminal className="w-5 h-5 text-green-400" />
@@ -443,7 +509,7 @@ export const DevBotView: React.FC = () => {
               </div>
             </div>
 
-            {/* Output Viewer */}
+            {/* Output */}
             <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
                 <div className="flex items-center gap-3">

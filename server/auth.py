@@ -7,7 +7,7 @@ from datetime import datetime
 import logging
 
 from server import database, models
-from server.jwt_utils import create_access_token, decode_access_token
+from server.jwt_utils import create_access_token, decode_access_token, refresh_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,6 +30,10 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class TokenRequest(BaseModel):
+    token: str
 
 
 # -------- Helpers --------
@@ -174,3 +178,18 @@ def approve_user(
     log_action(db, admin_user.id, f"approved user {user.email}")
 
     return {"message": f"User {user.email} approved", "id": user.id}
+
+
+@router.post("/refresh")
+def refresh_token(body: TokenRequest):
+    """
+    Exchange an expired JWT for a new one with updated expiry.
+    """
+    try:
+        new_token = refresh_access_token(body.token)
+        return {"access_token": new_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh failed: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")

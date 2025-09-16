@@ -81,3 +81,28 @@ def decode_token(token: str) -> dict:
         logger.warning("Manual decode failed", extra={"token": token[:12] + '...'})
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return payload
+
+
+# --- 🔄 Refresh Token Support --- #
+
+def refresh_access_token(token: str):
+    """
+    Refresh an expired JWT by re-issuing it with a new expiry.
+    Does not validate exp claim (so it works with expired tokens).
+    """
+    try:
+        # Decode without verifying exp
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        logger.debug("Refresh decode success", extra={"payload": payload})
+
+        # Strip old expiry
+        payload.pop("exp", None)
+
+        # Issue new token
+        new_token = create_access_token(payload)
+        logger.info("JWT refreshed", extra={"sub": payload.get("sub")})
+        return new_token
+
+    except JWTError as e:
+        logger.warning("JWT refresh failed", exc_info=e, extra={"token": token[:12] + '...'})
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
