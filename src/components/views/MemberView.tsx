@@ -72,3 +72,9 @@ export const MemberView: React.FC = () => {
                   {premiumFeatures.map((feature, index) => (
                     <div key={index} className="bg-slate-700/30 rounded-xl p-6 border border-slate-600/30">
                       <feature.icon className="w-8 h-
+                  )
+                  )
+                  }
+    )
+  }
+}
