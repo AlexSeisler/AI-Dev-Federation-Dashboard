@@ -4,25 +4,29 @@ from starlette.responses import Response
 import json
 import logging
 import time
+import os  # ✅ for environment-based CORS
 
 from server import auth, tasks, github
 from server.security import SecurityMiddleware  # ✅ import security middleware
-from server.debug import router as debug_router 
+from server.debug import router as debug_router
 from server.debug import debug_log
+
 debug_log("🚀 Server startup test log")
+
 app = FastAPI(
     title="AI Dev Federation Dashboard Backend",
     version="0.1.0"
 )
 
-# ✅ Enable CORS so frontend at http://localhost:5173 can reach backend
-origins = [
-    "http://localhost:5173",  # Vite dev server
-]
+# ✅ Enable CORS: allow from environment variable, fallback to localhost
+origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,https://aidevfederationdashboard.netlify.app"
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[origin.strip() for origin in origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,7 +84,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(github.router)
-app.include_router(debug_router)  # ✅ GitHub endpoints wired in
+app.include_router(debug_router)  # ✅ Debug endpoints wired in
 
 @app.get("/healthz")
 def health_check():
