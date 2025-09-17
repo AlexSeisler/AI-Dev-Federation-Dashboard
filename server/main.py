@@ -7,7 +7,6 @@ import time
 import os  # ✅ for environment-based CORS
 
 from server import auth, tasks, github
-from server.security import SecurityMiddleware  # ✅ import security middleware
 from server.debug import router as debug_router
 from server.debug import debug_log
 
@@ -31,9 +30,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ✅ Add security middleware
-app.add_middleware(SecurityMiddleware)
 
 # ✅ Setup logging to the same debug.log file
 logging.basicConfig(
