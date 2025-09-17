@@ -1,8 +1,10 @@
 [build]
-  # Run install at repo root, then build inside src/
   command = "npm install && npm run build --prefix src"
-  # Publish the dist folder created inside src/
   publish = "src/dist"
+
+[build.environment]
+  # Forces Netlify to skip Python detection
+  PYTHON_VERSION = ""
 
 [[redirects]]
   from = "/api/*"
