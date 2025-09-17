@@ -12,52 +12,61 @@ export const SecurityArchitectView: React.FC = () => {
             </div>
             <div className="flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold text-white">Security Architect</h1>
-              <p className="text-red-300 text-base sm:text-lg">Security & Compliance Guardian</p>
+              <p className="text-red-300 text-base sm:text-lg">
+                Security enforcement - embeds risk mitigation into every plan.
+              </p>
             </div>
           </div>
-          
+
           <div className="space-y-6 sm:space-y-8">
             <div>
               <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
-                The Security Architect ensures your applications are built with security-first principles. 
-                From threat modeling to compliance frameworks, it identifies vulnerabilities and implements 
-                robust security measures across your entire development lifecycle.
+                The <strong>Security Architect</strong> ensures systems are secure by design. It
+                validates scaffolds at planning stage, emits review tickets, and embeds compliance
+                requirements directly into the lifecycle. Its role is <em>security-first design</em>,
+                ensuring the Federation builds with trust and resilience.
               </p>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-slate-700/30 rounded-xl p-4 sm:p-6 border border-slate-600/30">
                 <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 mb-2" />
                 <h3 className="font-semibold text-white mb-1 text-sm sm:text-base">Access Control</h3>
-                <p className="text-slate-400 text-xs sm:text-sm">Authentication, authorization, and identity management</p>
+                <p className="text-slate-400 text-xs sm:text-sm">
+                  Authentication, authorization, and identity safeguards.
+                </p>
               </div>
-              
+
               <div className="bg-slate-700/30 rounded-xl p-4 sm:p-6 border border-slate-600/30">
                 <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 mb-2" />
-                <h3 className="font-semibold text-white mb-1 text-sm sm:text-base">Vulnerability Assessment</h3>
-                <p className="text-slate-400 text-xs sm:text-sm">Automated security scanning and threat detection</p>
+                <h3 className="font-semibold text-white mb-1 text-sm sm:text-base">
+                  Vulnerability Review
+                </h3>
+                <p className="text-slate-400 text-xs sm:text-sm">
+                  Scans for risks, threats, and attack surfaces.
+                </p>
               </div>
-              
+
               <div className="bg-slate-700/30 rounded-xl p-4 sm:p-6 border border-slate-600/30 sm:col-span-2 lg:col-span-1">
                 <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 mb-2" />
                 <h3 className="font-semibold text-white mb-1 text-sm sm:text-base">Compliance</h3>
-                <p className="text-slate-400 text-xs sm:text-sm">GDPR, SOC 2, and industry standard compliance</p>
+                <p className="text-slate-400 text-xs sm:text-sm">
+                  Ensures alignment with SOC2, GDPR, and industry standards.
+                </p>
               </div>
             </div>
-            
-            <div className="bg-gradient-to-r from-slate-700/20 to-slate-800/20 rounded-xl p-6 border border-slate-600/30">
-              <h3 className="text-white font-semibold mb-3">Security Reports</h3>
-              <div className="bg-slate-900/50 rounded-lg p-8 border border-slate-700/50">
-                <div className="text-slate-500 text-center">
-                  <Shield className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>Security audit reports and vulnerability assessments</p>
-                </div>
-              </div>
-            </div>
-            
-            <button className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-red-500/20">
-              <ExternalLink className="w-5 h-5" />
-              Open in GPT
+
+            <button
+              onClick={() =>
+                window.open(
+                  'https://chatgpt.com/g/g-689e88ed8c4c8191a09d4d04969f6f04-systems-architect-v1',
+                  '_blank'
+                )
+              }
+              className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-red-500/20 min-h-[48px]"
+            >
+              <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="text-sm sm:text-base">Launch Agent</span>
             </button>
           </div>
         </div>

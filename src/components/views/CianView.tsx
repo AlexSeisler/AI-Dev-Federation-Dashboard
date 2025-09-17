@@ -13,7 +13,7 @@ export const CianView: React.FC = () => {
             <div className="flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold text-white">CIAN</h1>
               <p className="text-blue-300 text-base sm:text-lg">
-                Central Intelligence Automation Network — your second brain.
+                Central Intelligence Automation Network - your second brain.
               </p>
             </div>
           </div>
@@ -21,9 +21,10 @@ export const CianView: React.FC = () => {
           <div className="space-y-6 sm:space-y-8">
             <div>
               <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
-                CIAN is the **General Manager** of the Federation. It validates inputs, enforces
-                the Critical Validation Loop (CVL), and routes execution across agents. Its role is
-                orchestration and continuity — ensuring every action aligns with mission truths.
+                CIAN is the <strong>General Manager</strong> of the Federation. It validates all
+                inputs through the Critical Validation Loop (CVL), anchors decisions to mission
+                memory, and routes execution across agents. Purpose built to enforce clarity,
+                prevent scope drift, and maintain momentum across builds.
               </p>
             </div>
 
@@ -50,6 +51,17 @@ export const CianView: React.FC = () => {
                 <p className="text-slate-400 text-xs sm:text-sm">
                   Aligns every action to mission-core truths and federation schemas.
                 </p>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-slate-700/20 to-slate-800/20 rounded-xl p-4 sm:p-6 border border-slate-600/30">
+              <h3 className="text-white font-semibold mb-3 text-base sm:text-lg">Preview Screenshot</h3>
+              <div className="bg-slate-900/50 rounded-lg p-4 sm:p-6 border border-slate-700/50">
+                <img
+                  src="/assets/CIAN.png"
+                  alt="CIAN Preview"
+                  className="w-full rounded-lg shadow-lg border border-slate-700/50"
+                />
               </div>
             </div>
 
