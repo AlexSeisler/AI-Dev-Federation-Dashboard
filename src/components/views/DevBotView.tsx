@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Play, Terminal, FileText, Package, AlertCircle, Copy, CheckCircle, Clock } from 'lucide-react';
+import { Bot, Play, Terminal, FileText, Package, AlertCircle, Copy, CheckCircle, Clock, X, Lightbulb } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Task {
@@ -53,6 +53,8 @@ export const DevBotView: React.FC = () => {
   const [output, setOutput] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [showColdStartMessage, setShowColdStartMessage] = useState(false);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(true);
+  const [lastTaskResult, setLastTaskResult] = useState<string>('');
   
   const logConsoleRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -302,6 +304,11 @@ export const DevBotView: React.FC = () => {
         const task = await response.json();
         setCurrentTask(task);
         setLogs(task.logs || []);
+        
+        // Store last result for quick replay
+        if (task.output) {
+          setLastTaskResult(task.output);
+        }
 
         // ✅ Use full response from backend
         if (task.output) {
@@ -334,6 +341,11 @@ export const DevBotView: React.FC = () => {
   };
 
   const selectedPresetConfig = taskPresets.find(p => p.id === selectedPreset);
+  const isFormValid = selectedPreset && (
+    selectedPreset === 'brainstorm' ? userPrompt.trim() : 
+    selectedPresetConfig?.needsRepo ? repoId.trim() && (!selectedPresetConfig.needsFile || filePath.trim()) :
+    true
+  );
 
   return (
     <div className="h-full p-6 overflow-auto bg-slate-900/20">
@@ -357,6 +369,25 @@ export const DevBotView: React.FC = () => {
             </div>
           )}
 
+          {/* Onboarding Banner */}
+          {showOnboardingBanner && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Lightbulb className="w-5 h-5 text-blue-400" />
+                <div>
+                  <p className="text-blue-300 font-medium">Welcome to DevBot! 🚀</p>
+                  <p className="text-blue-200 text-sm">Select a task preset and run your first AI analysis. Start with Alignment/Plan for a quick brainstorm.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOnboardingBanner(false)}
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-400" />
@@ -369,6 +400,30 @@ export const DevBotView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Control Panel */}
           <div className="lg:col-span-1 space-y-6">
+            {/* Step Indicator */}
+            <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/50">
+              <div className="flex items-center justify-between text-sm">
+                <div className={`flex items-center gap-2 ${selectedPreset ? 'text-green-400' : 'text-blue-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${selectedPreset ? 'bg-green-500/20 border border-green-500/50' : 'bg-blue-500/20 border border-blue-500/50'}`}>
+                    1
+                  </div>
+                  <span>Choose Task</span>
+                </div>
+                <div className={`flex items-center gap-2 ${selectedPreset && isFormValid ? 'text-green-400' : 'text-slate-500'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${selectedPreset && isFormValid ? 'bg-green-500/20 border border-green-500/50' : 'bg-slate-600/20 border border-slate-600/50'}`}>
+                    2
+                  </div>
+                  <span>Configure</span>
+                </div>
+                <div className={`flex items-center gap-2 ${isFormValid ? 'text-blue-400' : 'text-slate-500'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isFormValid ? 'bg-blue-500/20 border border-blue-500/50' : 'bg-slate-600/20 border border-slate-600/50'}`}>
+                    3
+                  </div>
+                  <span>Run</span>
+                </div>
+              </div>
+            </div>
+
             {/* Task Presets */}
             <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700/50">
               <h3 className="text-white font-semibold mb-3">Task Presets</h3>
@@ -378,10 +433,10 @@ export const DevBotView: React.FC = () => {
                     key={preset.id}
                     onClick={() => setSelectedPreset(preset.id)}
                     disabled={isRunning}
-                    className={`w-full text-left px-3 py-3 rounded-lg transition-all duration-200 ${
+                    className={`w-full text-left px-3 py-3 rounded-lg transition-all duration-200 hover:scale-[1.02] ${
                       selectedPreset === preset.id
                         ? 'bg-blue-600/30 border border-blue-500/50 text-blue-300'
-                        : 'bg-slate-700/30 border border-slate-600/30 text-slate-300 hover:bg-slate-700/50'
+                        : 'bg-slate-700/30 border border-slate-600/30 text-slate-300 hover:bg-slate-700/50 hover:border-slate-500/50'
                     } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="font-medium">{preset.name}</div>
@@ -407,7 +462,7 @@ export const DevBotView: React.FC = () => {
                         disabled={isRunning}
                         className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                         rows={3}
-                        placeholder="What would you like to brainstorm about?"
+                        placeholder="e.g., 'Analyze this project for security vulnerabilities and suggest improvements'"
                       />
                     </div>
                   )}
@@ -423,7 +478,7 @@ export const DevBotView: React.FC = () => {
                         onChange={(e) => setRepoId(e.target.value)}
                         disabled={isRunning}
                         className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="owner/repository"
+                        placeholder="AlexSeisler/AI-Dev-Federation-Dashboard"
                       />
                     </div>
                   )}
@@ -439,7 +494,7 @@ export const DevBotView: React.FC = () => {
                         onChange={(e) => setFilePath(e.target.value)}
                         disabled={isRunning}
                         className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="src/components/App.tsx"
+                        placeholder="src/App.tsx"
                       />
                     </div>
                   )}
@@ -450,9 +505,9 @@ export const DevBotView: React.FC = () => {
             {/* Run Button */}
             <button
               onClick={startTask}
-              disabled={!selectedPreset || isRunning || !user}
+              disabled={!isFormValid || isRunning || !user}
               className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-3 ${
-                !selectedPreset || isRunning || !user
+                !isFormValid || isRunning || !user
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : user?.status === 'pending'
                     ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg shadow-purple-500/20'
@@ -541,6 +596,30 @@ export const DevBotView: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Last Task Results */}
+            {lastTaskResult && (
+              <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
+                  <div className="flex items-center gap-3">
+                    <Package className="w-5 h-5 text-purple-400" />
+                    <span className="text-white font-medium">Last Task Results</span>
+                  </div>
+                  <button
+                    onClick={() => setOutput(lastTaskResult)}
+                    className="flex items-center gap-2 px-3 py-1 bg-slate-600/50 hover:bg-slate-600/70 rounded-lg text-slate-300 hover:text-white transition-all duration-200"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span className="text-sm">Replay</span>
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="text-slate-400 text-sm line-clamp-3">
+                    {lastTaskResult.substring(0, 150)}...
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Task Status */}
             {currentTask && (

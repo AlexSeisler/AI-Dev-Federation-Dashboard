@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crown, Lock, Mail, Shield, Zap, User, Key } from 'lucide-react';
+import { Crown, Lock, Mail, Shield, Zap, User, Key, Bot } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AuthForms } from '../auth/AuthForms';
 
