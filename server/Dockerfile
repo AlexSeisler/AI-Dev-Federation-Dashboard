@@ -1,26 +1,30 @@
-# Use official Python image (pin to 3.11 to avoid 3.13 issues)
+# Use official Python base image
 FROM python:3.11-slim
 
-# Set working directory
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set work directory
 WORKDIR /app
 
-# Install system deps for psycopg2 + other libs
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    gcc \
-    curl \
+# Install system dependencies (needed for psycopg2 and others)
+RUN apt-get update \
+    && apt-get install -y build-essential libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements first (for caching)
+COPY server/requirements.txt /app/requirements.txt
 
-# Copy the app
-COPY . .
+# Install Python dependencies
+RUN pip install --upgrade pip \
+    && pip install -r /app/requirements.txt
 
-# Expose Render’s expected port
+# Copy server code
+COPY server /app/server
+
+# Expose port for Render
 EXPOSE 8080
 
-# Start FastAPI with uvicorn
+# Start FastAPI app
 CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8080"]

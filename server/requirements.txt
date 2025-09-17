@@ -5,7 +5,9 @@ python-jose==3.3.0
 passlib[bcrypt]==1.7.4
 pydantic==2.3.0
 pydantic-settings==2.0.3
-sse-starlette
-sqlalchemy
-psycopg2-binary
-gunicorn
+sse-starlette==3.0.2
+sqlalchemy==2.0.43
+psycopg2-binary==2.9.10
+gunicorn==23.0.0
+python-dotenv==1.0.1
+greenlet==3.0.3

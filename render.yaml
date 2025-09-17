@@ -16,6 +16,8 @@ services:
         sync: false
       - key: CORS_ORIGINS
         value: "http://localhost:5173,https://aidevfederationdashboard.netlify.app"
+      - key: PORT
+        value: "8080"   # ✅ makes sure uvicorn binds to Render’s port
     healthCheckPath: /healthz
     autoDeploy: true
 
