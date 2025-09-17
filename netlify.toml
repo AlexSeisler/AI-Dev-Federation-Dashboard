@@ -1,9 +1,7 @@
 [build]
-  base = ""
-  command = "npm install && npm run build --prefix src"
+  command = "npm install && npm run build"
   publish = "src/dist"
 
-# Prevent Netlify from auto-detecting Python and installing requirements.txt
 [build.environment]
   NODE_VERSION = "18"
   DISABLE_PIP_INSTALL = "true"
