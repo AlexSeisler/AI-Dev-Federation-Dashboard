@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, Cpu, Shield, Bot, Users, Crown, Lock, Settings, LogOut, LogIn, UserPlus } from 'lucide-react';
+import { Brain, Cpu, Shield, Bot, Users, Crown, Lock, Settings, LogOut, LogIn, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AgentTab } from '../App';
 
