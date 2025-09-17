@@ -53,22 +53,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user }
         }).map((agent) => {
           const isActive = activeTab === agent.id;
           const isLocked = agent.locked && (!user || user.status !== 'approved');
+          const isDevBot = agent.id === 'devbot';
           
           return (
             <button
               key={agent.id}
               onClick={() => !isLocked && onTabChange(agent.id)}
               disabled={isLocked}
-              className={`
+              className={`relative
                 w-full text-left p-4 rounded-xl transition-all duration-200 group
                 ${isActive 
                   ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 shadow-lg shadow-blue-500/10' 
                   : isLocked
                     ? 'bg-slate-700/30 border border-slate-600/30 opacity-60 cursor-not-allowed'
-                    : 'bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/50 hover:border-slate-500/50'
+                    : isDevBot
+                      ? 'bg-gradient-to-r from-green-600/10 to-blue-600/10 border border-green-500/20 hover:bg-gradient-to-r hover:from-green-600/20 hover:to-blue-600/20 hover:border-green-500/40 animate-pulse-glow'
+                      : 'bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/50 hover:border-slate-500/50'
                 }
               `}
             >
+              {/* DevBot Highlight Ring */}
+              {isDevBot && !isActive && (
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-green-500/20 to-blue-500/20 animate-pulse opacity-50 pointer-events-none" />
+              )}
+              
               <div className="flex items-center gap-3">
                 <div className={`
                   p-2 rounded-lg transition-all duration-200
@@ -76,7 +84,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user }
                     ? 'bg-blue-500/20 text-blue-400'
                     : isLocked
                       ? 'bg-slate-600/30 text-slate-500'
-                      : 'bg-slate-600/30 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                      : isDevBot
+                        ? 'bg-green-500/20 text-green-400 group-hover:bg-green-500/30'
+                        : 'bg-slate-600/30 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
                   }
                 `}>
                   {isLocked ? <Lock className="w-5 h-5" /> : <agent.icon className="w-5 h-5" />}
@@ -89,10 +99,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user }
                       ? 'text-white' 
                       : isLocked 
                         ? 'text-slate-500'
-                        : 'text-slate-300 group-hover:text-white'
+                        : isDevBot
+                          ? 'text-green-300 group-hover:text-white'
+                          : 'text-slate-300 group-hover:text-white'
                     }
                   `}>
                     {agent.name}
+                    {isDevBot && !isActive && (
+                      <span className="ml-2 text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full animate-pulse">
+                        ✨ Try Me
+                      </span>
+                    )}
                   </div>
                   <div className={`
                     text-xs transition-colors duration-200
@@ -100,7 +117,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user }
                       ? 'text-blue-300' 
                       : isLocked
                         ? 'text-slate-600'
-                        : 'text-slate-500 group-hover:text-slate-400'
+                        : isDevBot
+                          ? 'text-green-400 group-hover:text-slate-400'
+                          : 'text-slate-500 group-hover:text-slate-400'
                     }
                   `}>
                     {agent.description}

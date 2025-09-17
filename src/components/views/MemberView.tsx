@@ -107,6 +107,15 @@ export const MemberView: React.FC = () => {
               <p className="text-green-300 mb-4">
                 Your account has been approved and you now have full access to all member features.
               </p>
+              <div className="space-y-4">
+                <button
+                  onClick={() => window.location.href = '#devbot'}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 mx-auto"
+                >
+                  <Bot className="w-5 h-5" />
+                  Continue as Guest - Try DevBot
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -125,7 +134,7 @@ export const MemberView: React.FC = () => {
                 <div className="text-slate-300 text-center">
                   <Crown className="w-16 h-16 mx-auto mb-4 text-green-400" />
                   <p>Advanced member tools and analytics coming soon!</p>
-                </div>
+                👉 You can explore DevBot while waiting for approval
               </div>
             </div>
           </div>
