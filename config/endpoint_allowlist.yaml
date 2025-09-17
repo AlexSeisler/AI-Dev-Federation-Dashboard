@@ -1,7 +1,7 @@
 endpoints:
   - /health/ping
   - /healthz
-  - /tasks/run/{preset}     # ✅ allow HF runner presets (brainstorm, file, structure)
+  - /tasks/run/{preset}
   - /tasks/{task_id}
   - /tasks/{task_id}/stream
   - /repo/tree
