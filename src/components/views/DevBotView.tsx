@@ -39,7 +39,11 @@ const taskPresets = [
   },
 ];
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+  throw new Error("❌ VITE_API_URL is not set. Please configure it in your Netlify environment.");
+}
 
 export const DevBotView: React.FC = () => {
   const { user } = useAuth();
