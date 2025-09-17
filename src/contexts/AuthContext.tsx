@@ -16,6 +16,7 @@ interface AuthContextType {
   logout: () => void;
   approveUser: (userId: number) => Promise<{ success: boolean; message: string }>;
   checkAuth: () => Promise<void>;
+  checkEmailInDatabase: (email: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -78,6 +79,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // New method to check if email exists in the database
+  const checkEmailInDatabase = async (email: string) => {
+    try {
+      const response = await fetch(`${API_URL}/check-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      return data.exists;  // Assuming the API returns { exists: true/false }
+    } catch (error) {
+      console.error("Error checking email:", error);
+      return false;
+    }
+  };
+
   const signup = async (email: string, password: string) => {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
@@ -96,7 +116,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           role: 'member',
           status: 'pending'
         });
-        return { success: true, message: 'Account created! Waiting for admin approval.' };
+
+        // Check if email exists in the database to allow DevBot demo
+        const emailExists = await checkEmailInDatabase(email);
+        if (emailExists) {
+          return { success: true, message: 'Account created! Waiting for admin approval. You can access DevBot demo.' };
+        } else {
+          return { success: true, message: 'Account created! Waiting for admin approval.' };
+        }
       } else {
         return { success: false, message: data.detail || 'Signup failed' };
       }
@@ -173,6 +200,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     approveUser,
     checkAuth,
+    checkEmailInDatabase,  // Expose the email check method
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
