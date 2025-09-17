@@ -1,6 +1,6 @@
 [build]
   base = "src"
-  publish = "src/dist"
+  publish = "dist"
   command = "npm install && npm run build"
 
 [build.environment]
