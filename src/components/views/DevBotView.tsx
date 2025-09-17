@@ -593,7 +593,6 @@ export const DevBotView: React.FC = () => {
                 )}
               </div>
               <div className="h-64 overflow-y-auto p-4 bg-slate-950/50">
-              <div className="h-48 sm:h-64 overflow-y-auto p-4 bg-slate-950/50">
                 {output ? (
                   <div className="text-slate-300 whitespace-pre-wrap leading-relaxed break-words">
                     {output}
@@ -604,6 +603,7 @@ export const DevBotView: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
             </div>
 
             {/* Last Task Results */}
