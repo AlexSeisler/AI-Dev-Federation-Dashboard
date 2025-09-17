@@ -11,3 +11,4 @@ psycopg2-binary==2.9.10
 gunicorn==23.0.0
 python-dotenv==1.0.1
 greenlet==3.0.3
+email-validator==2.1.1   # ✅ required for Pydantic EmailStr
