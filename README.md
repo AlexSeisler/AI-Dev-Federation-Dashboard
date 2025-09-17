@@ -1,5 +1,7 @@
 # AI Dev Federation Dashboard ⚡
 
+[![Live Demo on Netlify](https://img.shields.io/badge/Live-Demo-green?logo=netlify)](https://aidevfederationdashboard.netlify.app/)
+
 The **AI Dev Federation Dashboard** is a full end-to-end system demonstrating a **multi-agent orchestration layer** for AI-assisted development. It mirrors a software org with agents - **General Manager (CIAN), Architects, Security, and DevBot (engineer)** - working together to plan, validate, and execute.
 
 This repo includes both the **frontend dashboard** (React + Tailwind) and the **backend services** (FastAPI + GitHub integrations + LLM) that power live demos and execution flows.
