@@ -1,4 +1,4 @@
-# AI-Dev-Federation-Dashboard ⚡
+# AI Dev Federation Dashboard ⚡
 
 The **AI Dev Federation Dashboard** is a full end-to-end system demonstrating a **multi-agent orchestration layer** for AI-assisted development. It mirrors a software org with agents - **General Manager (CIAN), Architects, Security, and DevBot (engineer)** - working together to plan, validate, and execute.
 
@@ -17,7 +17,7 @@ This repo includes both the **frontend dashboard** (React + Tailwind) and the **
 
 * 🧠 **CIAN (GM Agent)** → Strategic anchor, validates inputs, routes execution.
 * 🏗️ **System Architect** → Generates DAGs, decomposes tasks, ensures security-first milestones.
-* 🔐 **Security Architect** → Placeholder agent for future enforcement of security scaffolds.
+* 🔐 **Security Architect** → Plans integration of security marked tasks
 * 🤖 **DevBot** → Execution layer, performs repo file changes + patch lifecycle.
 * 👥 **Trifecta Community** → Connected builder community showing adoption + execution.
 
@@ -25,7 +25,7 @@ This repo includes both the **frontend dashboard** (React + Tailwind) and the **
 
 ## 📊 Capabilities
 
-🚀 Demonstrates a **company-in-a-box model** — strategy → planning → execution → security.
+🚀 Demonstrates a **company-in-a-box model** — strategy → planning → security → execution → production.
 💻 Enables **live repo navigation + patch application** via DevBot.
 🌐 Connects with a growing builder community (AI Dev: Trifecta).
 📂 Structured as a full solution for showcasing integrated AI development.
@@ -46,12 +46,6 @@ This repo includes both the **frontend dashboard** (React + Tailwind) and the **
 * Hugging Face Router API → completions
 * GitHub REST API → repo tree, file content, patching
 * SQLAlchemy + SQLite → persistence (users, tasks, logs, memory)
-
-**Infrastructure**
-
-* Hosting: TBD (e.g. Vercel + Fly.io)
-* Secrets: `.env` + config files
-* Debug logging → unified with `server/debug.py`
 
 ---
 
