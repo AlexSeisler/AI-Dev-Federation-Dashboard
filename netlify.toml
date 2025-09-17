@@ -1,0 +1,8 @@
+[build]
+  base = "src/"          # or your frontend folder
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  VITE_API_URL = "https://ai-dev-federation-dashboard.onrender.com"
