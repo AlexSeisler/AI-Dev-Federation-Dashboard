@@ -1,7 +1,8 @@
 [build]
-  base = "src"
-  command = "npm install && npm run build"
-  publish = "dist"
+  # Run install at repo root, then build inside src/
+  command = "npm install && npm run build --prefix src"
+  # Publish the dist folder created inside src/
+  publish = "src/dist"
 
 [[redirects]]
   from = "/api/*"
