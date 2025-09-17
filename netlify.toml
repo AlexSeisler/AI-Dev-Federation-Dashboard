@@ -1,16 +1,14 @@
 [build]
-  base = "."
   command = "npm install && npm run build"
   publish = "dist"
 
 [build.environment]
-  # Only expose safe frontend vars
   VITE_API_URL = "https://ai-dev-federation-dashboard.onrender.com"
+  SECRETS_SCAN_OMIT_KEYS = "HF_MODEL,HF_MAX_TOKENS"
+  SECRETS_SCAN_OMIT_PATHS = "server/config.py,server/hf_client.py,dist/assets/*"
 
 [[redirects]]
   from = "/api/*"
   to = "https://ai-dev-federation-dashboard.onrender.com/:splat"
   status = 200
   force = true
-[build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "HF_MODEL,HF_MAX_TOKENS"
