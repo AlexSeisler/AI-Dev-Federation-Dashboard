@@ -134,7 +134,8 @@ export const MemberView: React.FC = () => {
                 <div className="text-slate-300 text-center">
                   <Crown className="w-16 h-16 mx-auto mb-4 text-green-400" />
                   <p>Advanced member tools and analytics coming soon!</p>
-                👉 You can explore DevBot while waiting for approval
+                  <p>👉 You can explore DevBot while waiting for approval</p>
+                </div>
               </div>
             </div>
           </div>
