@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str = os.getenv("DATABASE_URL")
     if not database_url:
         raise ValueError("❌ DATABASE_URL is not set. Please configure it in your environment.")
+    print("DEBUG: Render environment DATABASE_URL =", os.getenv("DATABASE_URL"))
 
     # JWT secret for signing tokens (must be set in Render or defaults to None)
     jwt_secret: str = os.getenv("JWT_SECRET")

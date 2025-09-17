@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { GuestBanner } from './components/GuestBanner';
@@ -10,11 +10,42 @@ import { CommunityView } from './components/views/CommunityView';
 import { MemberView } from './components/views/MemberView';
 import { AdminView } from './components/views/AdminView';
 
-export type AgentTab = 'cian' | 'system-architect' | 'security-architect' | 'devbot' | 'community' | 'member' | 'admin';
+export type AgentTab =
+  | 'cian'
+  | 'system-architect'
+  | 'security-architect'
+  | 'devbot'
+  | 'community'
+  | 'member'
+  | 'admin';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 function App() {
   const { user, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<AgentTab>('cian');
+
+  // 🔹 Wake backend when app loads
+  useEffect(() => {
+    const wakeServer = async () => {
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          const res = await fetch(`${API_URL}/health/ping`);
+          if (res.ok) {
+            console.log("✅ Backend awake");
+            return;
+          }
+        } catch (err) {
+          console.warn("⚠️ Wakeup ping failed, retrying...");
+        }
+        retries--;
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    };
+
+    wakeServer();
+  }, []);
 
   if (isLoading) {
     return (
@@ -51,10 +82,10 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <GuestBanner user={user} />
-      
+
       <div className="flex h-[calc(100vh-60px)]">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} user={user} />
-        
+
         <main className="flex-1 overflow-hidden">
           <div className="h-full transition-all duration-300 ease-in-out">
             {renderContent()}
