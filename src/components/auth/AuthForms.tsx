@@ -22,7 +22,7 @@ export const AuthForms: React.FC = () => {
 
       setMessage({
         type: result.success ? 'success' : 'error',
-        text: result.message || (result.success ? '' : 'Authentication failed')
+        text: result.message || (result.success ? '' : 'Authentication failed'),
       });
 
       if (result.success) {
@@ -31,10 +31,9 @@ export const AuthForms: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Auth error:", error);
-      // Catch network/JSON parse errors
       setMessage({
         type: 'error',
-        text: error?.message || 'Unexpected error during authentication'
+        text: error?.message || 'Unexpected error during authentication',
       });
     } finally {
       setIsLoading(false);
@@ -53,7 +52,9 @@ export const AuthForms: React.FC = () => {
               {isLogin ? 'Welcome Back' : 'Join the Federation'}
             </h1>
             <p className="text-slate-400">
-              {isLogin ? 'Sign in to access your dashboard' : 'Create your account to get started'}
+              {isLogin
+                ? 'Sign in to access your dashboard'
+                : 'Create your account to get started'}
             </p>
           </div>
 
@@ -88,6 +89,16 @@ export const AuthForms: React.FC = () => {
                   className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-h-[48px]"
                   placeholder="Enter your email"
                   required
+                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                  title="Please enter a valid email address (example: user@example.com)"
+                  onInvalid={(e) =>
+                    (e.target as HTMLInputElement).setCustomValidity(
+                      "Enter a valid email address (example: user@example.com)"
+                    )
+                  }
+                  onInput={(e) =>
+                    (e.target as HTMLInputElement).setCustomValidity("")
+                  }
                 />
               </div>
             </div>
