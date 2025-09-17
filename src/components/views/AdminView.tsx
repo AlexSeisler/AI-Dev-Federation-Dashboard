@@ -109,8 +109,8 @@ export const AdminView: React.FC = () => {
   }
 
   return (
-    <div className="h-full p-8 overflow-auto">
-      <div className="max-w-6xl mx-auto">
+    <div className="h-full p-4 sm:p-8 overflow-auto">
+      <div className="max-w-6xl mx-auto w-full">
         <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-slate-700/50 p-8 backdrop-blur-sm">
           <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-xl border border-red-500/30">
@@ -139,7 +139,7 @@ export const AdminView: React.FC = () => {
 
           <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-slate-700/30 rounded-xl p-6 border border-slate-600/30">
                 <Users className="w-8 h-8 text-blue-400 mb-3" />
                 <div className="text-2xl font-bold text-white mb-1">{pendingUsers.length}</div>
@@ -190,33 +190,34 @@ export const AdminView: React.FC = () => {
                   <table className="w-full">
                     <thead className="bg-slate-800/50">
                       <tr>
-                        <th className="text-left p-4 text-slate-300 font-medium">Email</th>
-                        <th className="text-left p-4 text-slate-300 font-medium">Role</th>
-                        <th className="text-left p-4 text-slate-300 font-medium">Requested</th>
-                        <th className="text-left p-4 text-slate-300 font-medium">Actions</th>
+                        <th className="text-left p-2 sm:p-4 text-slate-300 font-medium text-sm">Email</th>
+                        <th className="text-left p-2 sm:p-4 text-slate-300 font-medium text-sm hidden sm:table-cell">Role</th>
+                        <th className="text-left p-2 sm:p-4 text-slate-300 font-medium text-sm hidden md:table-cell">Requested</th>
+                        <th className="text-left p-2 sm:p-4 text-slate-300 font-medium text-sm">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pendingUsers.map((pendingUser) => (
                         <tr key={pendingUser.id} className="border-t border-slate-600/30 hover:bg-slate-700/20">
-                          <td className="p-4">
-                            <div className="text-white font-medium">{pendingUser.email}</div>
+                          <td className="p-2 sm:p-4">
+                            <div className="text-white font-medium text-sm break-all">{pendingUser.email}</div>
                           </td>
-                          <td className="p-4">
+                          <td className="p-2 sm:p-4 hidden sm:table-cell">
                             <span className="px-2 py-1 bg-blue-600/20 text-blue-300 rounded-full text-xs font-medium">
                               {pendingUser.role}
                             </span>
                           </td>
-                          <td className="p-4">
+                          <td className="p-2 sm:p-4 hidden md:table-cell">
                             <div className="text-slate-400 text-sm">{formatDate(pendingUser.created_at)}</div>
                           </td>
-                          <td className="p-4">
+                          <td className="p-2 sm:p-4">
                             <button
                               onClick={() => handleApprove(pendingUser.id, pendingUser.email)}
-                              className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-green-500/20"
+                              className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 min-h-[36px]"
                             >
-                              <CheckCircle className="w-4 h-4" />
-                              Approve
+                              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">Approve</span>
+                              <span className="sm:hidden">✓</span>
                             </button>
                           </td>
                         </tr>

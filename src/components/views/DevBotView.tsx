@@ -401,12 +401,12 @@ export const DevBotView: React.FC = () => {
         </div>
 
         {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
           {/* Control Panel */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="w-full lg:col-span-1 space-y-6">
             {/* Step Indicator */}
             <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/50">
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm">
                 <div className={`flex items-center gap-2 ${selectedPreset ? 'text-green-400' : 'text-blue-400'}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${selectedPreset ? 'bg-green-500/20 border border-green-500/50' : 'bg-blue-500/20 border border-blue-500/50'}`}>
                     1
@@ -431,7 +431,7 @@ export const DevBotView: React.FC = () => {
             {/* Task Presets */}
             <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700/50">
               <h3 className="text-white font-semibold mb-3">Task Presets</h3>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
                 {taskPresets.map((preset) => (
                   <button
                     key={preset.id}
@@ -442,6 +442,7 @@ export const DevBotView: React.FC = () => {
                         ? 'bg-blue-600/30 border border-blue-500/50 text-blue-300'
                         : 'bg-slate-700/30 border border-slate-600/30 text-slate-300 hover:bg-slate-700/50 hover:border-slate-500/50'
                     } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    style={{ minHeight: '60px' }}
                   >
                     <div className="font-medium">{preset.name}</div>
                     <div className="text-xs text-slate-400 mt-1">{preset.description}</div>
@@ -466,6 +467,7 @@ export const DevBotView: React.FC = () => {
                         disabled={isRunning}
                         className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                         rows={3}
+                        style={{ minHeight: '80px' }}
                         placeholder="e.g., 'Analyze this project for security vulnerabilities and suggest improvements'"
                       />
                     </div>
@@ -483,6 +485,7 @@ export const DevBotView: React.FC = () => {
                         disabled={isRunning}
                         className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="AlexSeisler/AI-Dev-Federation-Dashboard"
+                        style={{ minHeight: '44px' }}
                       />
                     </div>
                   )}
@@ -499,6 +502,7 @@ export const DevBotView: React.FC = () => {
                         disabled={isRunning}
                         className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="src/App.tsx"
+                        style={{ minHeight: '44px' }}
                       />
                     </div>
                   )}
@@ -510,7 +514,7 @@ export const DevBotView: React.FC = () => {
             <button
               onClick={startTask}
               disabled={!isFormValid || isRunning || !user}
-              className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-3 ${
+              className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-3 min-h-[56px] ${
                 !isFormValid || isRunning || !user
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : user?.status === 'pending'
@@ -539,7 +543,7 @@ export const DevBotView: React.FC = () => {
           </div>
 
           {/* Logs + Output */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="w-full lg:col-span-2 space-y-6">
             {/* Logs */}
             <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 overflow-hidden">
               <div className="flex items-center gap-3 px-6 py-3 bg-slate-900/50 border-b border-slate-700/50">
@@ -554,7 +558,7 @@ export const DevBotView: React.FC = () => {
               </div>
               <div 
                 ref={logConsoleRef}
-                className="h-64 overflow-y-auto p-4 font-mono text-sm bg-slate-950/50"
+                className="h-48 sm:h-64 overflow-y-auto p-4 font-mono text-sm bg-slate-950/50"
               >
                 {logs.length === 0 ? (
                   <div className="text-slate-500 italic">
@@ -589,8 +593,9 @@ export const DevBotView: React.FC = () => {
                 )}
               </div>
               <div className="h-64 overflow-y-auto p-4 bg-slate-950/50">
+              <div className="h-48 sm:h-64 overflow-y-auto p-4 bg-slate-950/50">
                 {output ? (
-                  <div className="text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  <div className="text-slate-300 whitespace-pre-wrap leading-relaxed break-words">
                     {output}
                   </div>
                 ) : (

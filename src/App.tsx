@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Menu, X } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { GuestBanner } from './components/GuestBanner';
@@ -24,6 +25,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 function App() {
   const { user, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<AgentTab>('cian');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 🔹 Wake backend when app loads
   useEffect(() => {
@@ -82,11 +84,43 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <GuestBanner user={user} />
+      
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-slate-800/50 border-b border-slate-700/50 backdrop-blur-sm p-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            AI Dev Federation
+          </h1>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-all duration-200"
+          >
+            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+      </div>
 
-      <div className="flex h-[calc(100vh-60px)]">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} user={user} />
+      <div className="flex h-[calc(100vh-60px)] lg:h-[calc(100vh-60px)]">
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        
+        <Sidebar 
+          activeTab={activeTab} 
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setSidebarOpen(false);
+          }} 
+          user={user}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
 
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden w-full lg:w-auto">
           <div className="h-full transition-all duration-300 ease-in-out">
             {renderContent()}
           </div>

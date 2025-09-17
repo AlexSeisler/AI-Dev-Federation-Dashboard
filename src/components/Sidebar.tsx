@@ -15,6 +15,8 @@ interface SidebarProps {
   activeTab: AgentTab;
   onTabChange: (tab: AgentTab) => void;
   user: User | null;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const agents = [
@@ -26,7 +28,7 @@ const agents = [
   { id: 'member' as const, name: 'Member', icon: Crown, description: 'Premium Access', locked: true },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, isOpen = true, onClose }) => {
   const { logout } = useAuth();
 
   const handleLogout = () => {
@@ -35,12 +37,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user }
   };
 
   return (
-    <aside className="w-80 bg-slate-800/50 border-r border-slate-700/50 backdrop-blur-sm">
+    <aside className={`
+      w-80 bg-slate-800/50 border-r border-slate-700/50 backdrop-blur-sm
+      fixed lg:relative inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      lg:transform-none
+    `}>
       <div className="p-6 border-b border-slate-700/50">
+        <div className="flex items-center justify-between lg:block">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
           AI Dev Federation
         </h1>
         <p className="text-slate-400 text-sm mt-1">Agent Dashboard</p>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-all duration-200"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
       
       <nav className="p-4 space-y-2">

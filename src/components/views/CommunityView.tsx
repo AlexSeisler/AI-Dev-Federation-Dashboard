@@ -17,8 +17,8 @@ const communityStats = [
 
 export const CommunityView: React.FC = () => {
   return (
-    <div className="h-full p-8 overflow-auto">
-      <div className="max-w-4xl mx-auto">
+    <div className="h-full p-4 sm:p-8 overflow-auto">
+      <div className="max-w-4xl mx-auto w-full">
         <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-slate-700/50 p-8 backdrop-blur-sm">
           <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-500/30">
@@ -32,7 +32,7 @@ export const CommunityView: React.FC = () => {
           
           <div className="space-y-8">
             {/* Community Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {communityStats.map((stat, index) => (
                 <div key={index} className="bg-slate-700/30 rounded-xl p-6 border border-slate-600/30 text-center">
                   <stat.icon className="w-8 h-8 text-purple-400 mx-auto mb-3" />
@@ -44,18 +44,18 @@ export const CommunityView: React.FC = () => {
 
             {/* Skool Link */}
             <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-xl p-6 border border-purple-500/30">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-white font-semibold text-xl mb-2">Join Our Skool Community</h3>
                   <p className="text-purple-300 mb-4">
                     Access exclusive content, participate in discussions, and collaborate with fellow developers
                   </p>
-                  <button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-500/20">
+                  <button className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 min-h-[48px]">
                     <ExternalLink className="w-4 h-4" />
                     Join Skool Community
                   </button>
                 </div>
-                <div className="text-6xl opacity-20">🎓</div>
+                <div className="text-4xl lg:text-6xl opacity-20 self-center">🎓</div>
               </div>
             </div>
 
