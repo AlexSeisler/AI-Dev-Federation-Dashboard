@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ai-dev-federation-backend
+    env: docker
+    plan: free
+    dockerContext: ./server
+    dockerfilePath: ./server/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-dev-federation-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: HF_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "http://localhost:5173,https://aidevfederationdashboard.netlify.app"
+    healthCheckPath: /healthz
+    autoDeploy: true
+
+databases:
+  - name: ai-dev-federation-db
+    plan: free
