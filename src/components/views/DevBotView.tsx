@@ -656,6 +656,5 @@ export const DevBotView: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
