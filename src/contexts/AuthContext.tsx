@@ -82,21 +82,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // New method to check if email exists in the database
   const checkEmailInDatabase = async (email: string) => {
     try {
-      const response = await fetch(`${API_URL}/check-email`, {
-        method: 'POST',
+      const response = await fetch(`${API_URL}/auth/check-email?email=${encodeURIComponent(email)}`, {
+        method: 'POST',  // Ensure this is POST
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
-      return data.exists;  // Assuming the API returns { exists: true/false }
+      return data.exists;  // Assuming the response contains {"exists": true/false}
     } catch (error) {
       console.error("Error checking email:", error);
       return false;
     }
   };
+
 
   const signup = async (email: string, password: string) => {
     try {

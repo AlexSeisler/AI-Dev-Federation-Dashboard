@@ -189,15 +189,14 @@ def refresh_token(body: TokenRequest):
         logger.error(f"Token refresh failed: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
 @router.post("/check-email")
-def check_email(email: EmailStr, db: Session = Depends(database.get_db)):
+def check_email(email: EmailStr = Depends(), db: Session = Depends(database.get_db)):
     """
     Check if the email exists in the database, allowing pending users to access the DevBot demo.
     """
     user = db.query(models.User).filter(models.User.email == email).first()
     
     if user:
-        # Email exists, allow access (even if pending)
-        return {"exists": True}
+        return {"exists": True}  # Email exists
     else:
-        # Email does not exist
-        return {"exists": False}
+        return {"exists": False}  # Email does not exist
+
