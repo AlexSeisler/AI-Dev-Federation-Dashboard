@@ -242,6 +242,7 @@ export const DevBotView: React.FC = () => {
   }
 
   const streamTaskLogs = async (taskId: number) => {
+    setOutput("");
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -301,19 +302,21 @@ export const DevBotView: React.FC = () => {
         const task = await response.json();
         setCurrentTask(task);
         setLogs(task.logs || []);
-        
-        const outputLog = [...(task.logs || [])].reverse().find(
-          (log: LogEntry) => log.event.includes('HF Response:')
-        );
 
-        if (outputLog) {
-          const clean = outputLog.event.split('HF Response:')[1]?.trim();
-          setOutput(clean || outputLog.event);
+        // ✅ Use full response from backend
+        if (task.output) {
+          setOutput(task.output);
+        } else {
+          // fallback for old tasks
+          const outputLog = [...(task.logs || [])].reverse().find(
+            (log: LogEntry) => log.event.includes('HF Response:')
+          );
+          if (outputLog) {
+            const clean = outputLog.event.split('HF Response:')[1]?.trim();
+            setOutput(clean || outputLog.event);
+          }
         }
-        if (outputLog) {
-          setOutput(outputLog.event.replace('✅ HF Response: ', ''));
-        }
-        
+
         setIsRunning(false);
       }
     } catch (err) {

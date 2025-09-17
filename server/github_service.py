@@ -128,6 +128,12 @@ class GitHubService:
             "content": content,
         }
 
+    # ✅ New: Backward-compatible alias for tasks.py
+    def get_file(self, owner, repo, path, branch=None):
+        """Alias for backward compatibility — returns only file content."""
+        result = self.get_file_content(owner, repo, path, branch)
+        return result["content"]
+
 
 # ✅ Routes
 @router.get("/tree")
