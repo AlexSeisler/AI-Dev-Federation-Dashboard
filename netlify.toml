@@ -1,7 +1,7 @@
 [build]
   base = "src"
   command = "npm install && npm run build"
-  publish = "src/dist"
+  publish = "dist"
 
 [[redirects]]
   from = "/api/*"
