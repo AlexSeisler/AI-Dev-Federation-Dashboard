@@ -13,18 +13,18 @@ RUN apt-get update \
     && apt-get install -y build-essential libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for caching)
+# ✅ Copy requirements from server context
 COPY requirements.txt /app/requirements.txt
 
 # Install Python dependencies
 RUN pip install --upgrade pip \
     && pip install -r /app/requirements.txt
 
-# Copy server code (everything in /server context)
+# ✅ Copy all server code
 COPY . /app
 
 # Expose port for Render
 EXPOSE 8080
 
 # Start FastAPI app
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
