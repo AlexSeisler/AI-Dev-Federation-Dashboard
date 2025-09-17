@@ -3,8 +3,8 @@ services:
     name: ai-dev-federation-backend
     env: docker
     plan: free
-    dockerContext: ./server
-    dockerfilePath: ./server/Dockerfile
+    dockerContext: .              # build from repo root
+    dockerfilePath: ./Dockerfile  # Dockerfile at repo root
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -17,7 +17,7 @@ services:
       - key: CORS_ORIGINS
         value: "http://localhost:5173,https://aidevfederationdashboard.netlify.app"
       - key: PORT
-        value: "8080"   # ✅ makes sure uvicorn binds to Render’s port
+        value: "8080"   # ✅ uvicorn binds to Render’s expected port
     healthCheckPath: /healthz
     autoDeploy: true
 
