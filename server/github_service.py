@@ -1,16 +1,33 @@
-import requests
-from requests.exceptions import RequestException
-from fastapi import APIRouter, HTTPException
-from typing import Optional
+"""
+github_service.py — GitHub API Integration
+==========================================
+
+This module wraps the GitHub REST API to provide:
+- Repository tree browsing
+- File content retrieval (with truncation for large files)
+- Branch/SHA resolution for stable requests
+
+Also exposes FastAPI routes under `/repo/*` for frontend integration.
+"""
+
 import base64
 import traceback
+import requests
+from typing import Optional
+from requests.exceptions import RequestException
+from fastapi import APIRouter, HTTPException
 
 from server.config import settings
-from server.debug import debug_log  # ✅ unified debug logger
+from server.debug import debug_log
 
+# ----------------------------------------------------
+# Router
+# ----------------------------------------------------
 router = APIRouter(prefix="/repo", tags=["repo"])
 
-
+# ----------------------------------------------------
+# GitHub Service
+# ----------------------------------------------------
 class GitHubService:
     def __init__(self):
         self.base_url = "https://api.github.com"
@@ -20,6 +37,9 @@ class GitHubService:
         }
         self.timeout = 10
 
+    # ------------------------
+    # Internal request wrapper
+    # ------------------------
     def _request(self, method, url, use_auth=True, **kwargs):
         headers = {
             "Accept": "application/vnd.github.v3+json",
@@ -32,6 +52,7 @@ class GitHubService:
             headers["Authorization"] = f"{scheme} {token}"
 
         debug_log("GitHub API request", context={"method": method, "url": url, "use_auth": use_auth})
+
         try:
             response = requests.request(method, url, headers=headers, timeout=self.timeout, **kwargs)
             debug_log("GitHub API response", context={"status_code": response.status_code})
@@ -45,22 +66,25 @@ class GitHubService:
             debug_log("GitHub API request error", e, context={"method": method, "url": url})
             raise
 
+    # ------------------------
+    # Public API
+    # ------------------------
     def get_repo_tree(
         self,
-        owner,
-        repo,
-        branch=None,
-        recursive=True,
-        path_prefix=None,
-        limit=None,
-        offset=None,
+        owner: str,
+        repo: str,
+        branch: Optional[str] = None,
+        recursive: bool = True,
+        path_prefix: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ):
+        """Retrieve repository file tree (condensed)."""
         repo_url = f"{self.base_url}/repos/{owner}/{repo}"
         repo_data = self._request("GET", repo_url, use_auth=False)
         default_branch = repo_data.get("default_branch", "main")
 
-        if not branch:
-            branch = default_branch
+        branch = branch or default_branch
         debug_log("Resolved branch", context={"branch": branch})
 
         sha = None
@@ -97,14 +121,10 @@ class GitHubService:
         ]
 
         debug_log("Repo tree retrieved", context={"repo": f"{owner}/{repo}", "count": len(condensed)})
-        return {
-            "repo": f"{owner}/{repo}",
-            "branch": branch,
-            "count": len(condensed),
-            "files": condensed,
-        }
+        return {"repo": f"{owner}/{repo}", "branch": branch, "count": len(condensed), "files": condensed}
 
-    def get_file_content(self, owner, repo, path, branch=None, max_chars: int = 20000):
+    def get_file_content(self, owner: str, repo: str, path: str, branch: Optional[str] = None, max_chars: int = 20000):
+        """Retrieve file content from GitHub (decoded + truncated if large)."""
         if not branch:
             repo_url = f"{self.base_url}/repos/{owner}/{repo}"
             repo_data = self._request("GET", repo_url, use_auth=False)
@@ -116,33 +136,29 @@ class GitHubService:
         content = base64.b64decode(file_data["content"]).decode("utf-8", errors="ignore")
 
         if len(content) > max_chars:
-            debug_log("Truncating file content", context={"path": path, "original_size": len(content), "truncated_to": max_chars})
+            debug_log("Truncating file content", context={
+                "path": path,
+                "original_size": len(content),
+                "truncated_to": max_chars,
+            })
             content = content[:max_chars]
 
-        debug_log("File content retrieved", context={"repo": f"{owner}/{repo}", "path": path, "size": len(content)})
-        return {
-            "repo": f"{owner}/{repo}",
-            "branch": branch,
-            "path": path,
-            "size": len(content),
-            "content": content,
-        }
+        debug_log("File content retrieved", context={
+            "repo": f"{owner}/{repo}", "path": path, "size": len(content),
+        })
+        return {"repo": f"{owner}/{repo}", "branch": branch, "path": path, "size": len(content), "content": content}
 
-    # ✅ New: Backward-compatible alias for tasks.py
-    def get_file(self, owner, repo, path, branch=None):
+    def get_file(self, owner: str, repo: str, path: str, branch: Optional[str] = None):
         """Alias for backward compatibility — returns only file content."""
         result = self.get_file_content(owner, repo, path, branch)
         return result["content"]
 
-
-# ✅ Routes
+# ----------------------------------------------------
+# Routes
+# ----------------------------------------------------
 @router.get("/tree")
-async def get_repo_tree(
-    repo_id: str,
-    branch: str = "main",
-    recursive: bool = True,
-    path_prefix: Optional[str] = "",
-):
+async def get_repo_tree(repo_id: str, branch: str = "main", recursive: bool = True, path_prefix: Optional[str] = ""):
+    """API route: return repository tree (condensed)."""
     try:
         owner, repo = repo_id.split("/")
         service = GitHubService()
@@ -152,13 +168,9 @@ async def get_repo_tree(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to retrieve repo tree: {str(e)}")
 
-
 @router.get("/file")
-async def get_repo_file(
-    repo_id: str,
-    path: str,
-    branch: str = "main",
-):
+async def get_repo_file(repo_id: str, path: str, branch: str = "main"):
+    """API route: return file content (decoded + truncated)."""
     try:
         owner, repo = repo_id.split("/")
         service = GitHubService()

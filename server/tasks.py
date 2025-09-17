@@ -1,33 +1,49 @@
-# server/tasks.py
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+"""
+tasks.py — Task Management API
+==============================
+
+This module provides the **task execution layer** for the AI Dev Federation Dashboard backend.
+
+Responsibilities:
+- Define API routes for running and monitoring tasks (`/tasks`).
+- Handle task lifecycle (pending → running → completed/failed).
+- Manage in-memory task state and logs.
+- Stream logs/results back to the frontend via Server-Sent Events (SSE).
+- Integrate with external services (GitHubService + Hugging Face client).
+
+"""
+
 import asyncio
 import json
 import traceback
 from datetime import datetime
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from server.hf_client import run_completion
 from server.github_service import GitHubService
 from server.debug import debug_log
 
+# ----------------------------------------------------
+# Router Setup
+# ----------------------------------------------------
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-# --- In-memory stores ---
+# ----------------------------------------------------
+# In-Memory Task Stores (demo implementation)
+# ----------------------------------------------------
 TASKS: dict[int, dict] = {}
 LOGS: dict[int, list] = {}
 task_queues: dict[int, asyncio.Queue] = {}
 
-# Simple auto-increment task ID
-NEXT_TASK_ID = 1
-
-# Initialize GitHub service
+NEXT_TASK_ID = 1  # Simple auto-increment counter
 github_service = GitHubService()
 
-
-# --- Helpers ---
-
+# ----------------------------------------------------
+# Helpers
+# ----------------------------------------------------
 async def stream_logs(log_queue: asyncio.Queue):
-    """Helper to stream logs via SSE with initial heartbeat."""
+    """Yield log messages via SSE (with initial heartbeat)."""
     yield 'data: {"event": "connected"}\n\n'
     while True:
         message = await log_queue.get()
@@ -37,13 +53,14 @@ async def stream_logs(log_queue: asyncio.Queue):
 
 
 def log_event(task_id: int, event: str, log_queue: asyncio.Queue | None = None):
-    """Store log in memory and push to SSE queue."""
+    """Append log entry to memory + push to SSE queues."""
     entry = {"event": event, "timestamp": datetime.utcnow().isoformat()}
     LOGS[task_id].append(entry)
 
+    # Push to specific queue (if provided)
     if log_queue:
         asyncio.create_task(log_queue.put(entry))
-
+    # Push to global task queue
     if task_id in task_queues:
         asyncio.create_task(task_queues[task_id].put(entry))
 
@@ -51,12 +68,12 @@ def log_event(task_id: int, event: str, log_queue: asyncio.Queue | None = None):
 
 
 async def run_hf_task(task_id: int, preset: str, context: str, log_queue: asyncio.Queue):
-    """Runner logic with Hugging Face integration (no DB)."""
+    """Run a task with Hugging Face + optional GitHub context."""
     try:
         TASKS[task_id]["status"] = "running"
         repo_context = ""
 
-        # --- Handle presets ---
+        # Preset routing
         if preset == "structure":
             log_event(task_id, "📂 Fetching repo tree...", log_queue)
             tree = github_service.get_repo_tree("AlexSeisler", "AI-Dev-Federation-Dashboard")
@@ -70,15 +87,15 @@ async def run_hf_task(task_id: int, preset: str, context: str, log_queue: asynci
         else:
             log_event(task_id, f"⚠️ Unknown preset: {preset}", log_queue)
 
-        # --- Hugging Face Call ---
+        # Hugging Face call
         log_event(task_id, "📡 Sending request to Hugging Face...", log_queue)
         response_text = run_completion(preset, context or "", [], repo_context)
 
-        # ✅ Console log (truncated for readability)
+        # Preview in logs (truncated for readability)
         preview = response_text[:200] + ("..." if len(response_text) > 200 else "")
         log_event(task_id, f"✅ HF Response: {preview}", log_queue)
 
-        # ✅ Store full response for AI Output panel
+        # Store result
         TASKS[task_id]["status"] = "completed"
         TASKS[task_id]["output"] = response_text
 
@@ -95,9 +112,9 @@ async def run_hf_task(task_id: int, preset: str, context: str, log_queue: asynci
             await task_queues[task_id].put(None)
         debug_log("Task finished", context={"task_id": task_id})
 
-
-# --- API Routes ---
-
+# ----------------------------------------------------
+# API Routes
+# ----------------------------------------------------
 @router.post("/run/{preset}")
 async def run_task(preset: str, context: dict | str | None = None):
     """Start a new runner task (demo in-memory)."""
@@ -117,6 +134,7 @@ async def run_task(preset: str, context: dict | str | None = None):
 
     log_queue = asyncio.Queue()
     task_queues[task_id] = log_queue
+
     asyncio.create_task(run_hf_task(task_id, preset, TASKS[task_id]["context"], log_queue))
 
     return {"task_id": task_id, "status": "started"}
@@ -130,14 +148,14 @@ async def get_task(task_id: int):
         raise HTTPException(status_code=404, detail="Task not found")
     return {
         **task,
-        "logs": LOGS.get(task_id, []),     # truncated entries for console
-        "output": task.get("output", ""),  # full AI response
+        "logs": LOGS.get(task_id, []),
+        "output": task.get("output", ""),
     }
 
 
 @router.get("/{task_id}/stream")
 async def stream_task(task_id: int, request: Request):
-    """Stream logs for a running task (SSE)."""
+    """Stream logs for a running task (Server-Sent Events)."""
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -147,10 +165,10 @@ async def stream_task(task_id: int, request: Request):
     log_queue = task_queues[task_id]
 
     async def event_generator():
-        # replay existing logs
+        # Replay existing logs
         for log in LOGS.get(task_id, []):
             yield f"data: {json.dumps(log)}\n\n"
-        # now stream new logs
+        # Stream new logs
         async for message in stream_logs(log_queue):
             yield message
 

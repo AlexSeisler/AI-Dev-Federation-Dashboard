@@ -1,3 +1,17 @@
+/**
+ * App.tsx — Frontend Entrypoint
+ * =============================
+ *
+ * This is the main React container for the **AI Dev Federation Dashboard**.
+ *
+ * Responsibilities:
+ * - Initialize the layout shell (sidebar, banners, tab switching).
+ * - Handle auth state (user, loading state).
+ * - Keep backend service alive with a wakeup ping.
+ * - Route between all agent views (CIAN, System Architect, Security Architect, DevBot, Community, Member, Admin).
+ *
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -27,7 +41,9 @@ function App() {
   const [activeTab, setActiveTab] = useState<AgentTab>('cian');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // 🔹 Wake backend when app loads
+  // ----------------------------------------------------
+  // Wake backend when app loads (to prevent cold starts)
+  // ----------------------------------------------------
   useEffect(() => {
     const wakeServer = async () => {
       let retries = 3;
@@ -49,6 +65,9 @@ function App() {
     wakeServer();
   }, []);
 
+  // ----------------------------------------------------
+  // Loading state
+  // ----------------------------------------------------
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
@@ -60,6 +79,9 @@ function App() {
     );
   }
 
+  // ----------------------------------------------------
+  // Tab Router
+  // ----------------------------------------------------
   const renderContent = () => {
     switch (activeTab) {
       case 'cian':
@@ -73,7 +95,6 @@ function App() {
       case 'community':
         return <CommunityView />;
       case 'member':
-        // 🔹 Pass down onTabChange so MemberView can set activeTab
         return <MemberView onTabChange={setActiveTab} />;
       case 'admin':
         return <AdminView />;
@@ -82,6 +103,9 @@ function App() {
     }
   };
 
+  // ----------------------------------------------------
+  // Layout
+  // ----------------------------------------------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <GuestBanner user={user} />
