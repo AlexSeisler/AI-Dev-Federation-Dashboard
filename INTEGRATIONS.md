@@ -1,4 +1,4 @@
-# AI-Dev-Federation-Dashboard - Integrations Overview
+# AI Dev Federation Dashboard - Integrations Overview
 
 ## 🎯 Purpose
 
@@ -58,7 +58,7 @@ These integrations enable AI completions, repository navigation, persistence, an
 - Stores per-user conversation memory  
 
 **Risks**:  
-- SQLite is local-only — for scale, migrate to PostgreSQL  
+- SQLite is local-only - for scale, migrate to PostgreSQL  
 - PII (emails, auth) must be protected  
 
 ---

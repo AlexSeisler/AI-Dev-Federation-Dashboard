@@ -1,4 +1,4 @@
-# AI-Dev-Federation-Dashboard - Security Notes
+# AI Dev Federation Dashboard - Security Notes
 
 ## 🎯 Purpose
 
@@ -24,7 +24,7 @@ As a platform that integrates with **GitHub, Hugging Face, and local persistence
 ---
 
 ### 2. Repository Access (GitHub API)
-**Collected**: Repo trees, file contents, commit SHAs  
+**Retreives**: Repo trees, file contents, commit SHAs  
 
 **Risks**:  
 - Potential over-fetching or rate limit abuse  

@@ -25,7 +25,7 @@ This repo includes both the **frontend dashboard** (React + Tailwind) and the **
 
 ## 📊 Capabilities
 
-🚀 Demonstrates a **company-in-a-box model** — strategy → planning → security → execution → production.
+🚀 Demonstrates a **company-in-a-box model** - strategy → planning → security → execution → production.
 💻 Enables **live repo navigation + patch application** via DevBot.
 🌐 Connects with a growing builder community (AI Dev: Trifecta).
 📂 Structured as a full solution for showcasing integrated AI development.

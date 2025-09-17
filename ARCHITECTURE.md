@@ -1,4 +1,4 @@
-# AI-Dev-Federation-Dashboard - System Architecture
+# AI Dev Federation Dashboard - System Architecture
 
 ## 🎯 Purpose
 
@@ -70,13 +70,13 @@ G -->|Patch Proposal| J[GitHub PR Flow]
 
 F -->|Security Tickets| K[Security Architect]
 
-C -->|Community View| L[Trifecta Community Showcase]\
+C -->|Community View| L[Trifecta Community Showcase]
 ```
 
 ## 🧩 Subsystem Breakdown
 ```text
-| Subsystem        | Implementation         | Purpose                                         |
-|------------------|------------------------|-------------------------------------------------|
+| Subsystem        | Implementation         | Purpose                                          |
+|------------------|------------------------|--------------------------------------------------|
 | frontend_ui      | React + Vite + Tailwind| Dashboard views for agents + community           |
 | orchestration    | FastAPI                | Routes, SSE, middleware, task execution          |
 | ai_completion    | Hugging Face API       | LLM completions for planning + file reviews      |
@@ -90,7 +90,7 @@ C -->|Community View| L[Trifecta Community Showcase]\
 
 ## ⚡ Architecture Strengths
 
-- **End-to-end orchestration** → Strategy → Planning → Execution → Security  
+- **End-to-end orchestration** → Strategy → Planning → Security → Execution → Production
 - **Real-world integrations** → GitHub + Hugging Face + SQLAlchemy persistence  
 - **Agent discipline** → Clear boundaries between roles (CIAN, Architect, DevBot, Security)  
 - **Scalable design** → Extendable with new agents or external integrations  
