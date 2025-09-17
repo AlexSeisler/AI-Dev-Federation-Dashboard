@@ -2,6 +2,7 @@ import React from 'react';
 import { Crown, Lock, Mail, Shield, Zap, User, Key, Bot } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AuthForms } from '../auth/AuthForms';
+import { AgentTab } from '../../App';
 
 const premiumFeatures = [
   { name: 'Priority Agent Access', description: 'Skip queues and get instant responses', icon: Zap },
@@ -10,7 +11,7 @@ const premiumFeatures = [
   { name: 'Private Repositories', description: 'Work with confidential projects securely', icon: Lock }
 ];
 
-export const MemberView: React.FC = () => {
+export const MemberView: React.FC<{ onTabChange: (tab: AgentTab) => void }> = ({ onTabChange }) => {
   const { user } = useAuth();
 
   // Show auth forms for guests
@@ -34,8 +35,8 @@ export const MemberView: React.FC = () => {
                 </p>
                 <div className="space-y-4">
                   <button
-                    onClick={() => window.location.href = '#devbot'}
-                    className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 min-h-[48px]"
+                    onClick={() => onTabChange('devbot')}
+                    className="mx-auto block w-full sm:w-auto bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 min-h-[48px]"
                   >
                     <Bot className="w-5 h-5" />
                     Continue as Guest - Try DevBot
@@ -118,8 +119,8 @@ export const MemberView: React.FC = () => {
               </p>
               <div className="space-y-4">
                 <button
-                  onClick={() => window.location.href = '#devbot'}
-                  className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 mx-auto min-h-[48px]"
+                  onClick={() => onTabChange('devbot')}
+                  className="mx-auto block w-full sm:w-auto bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 min-h-[48px]"
                 >
                   <Bot className="w-5 h-5" />
                   Continue as Guest - Try DevBot

@@ -73,7 +73,8 @@ function App() {
       case 'community':
         return <CommunityView />;
       case 'member':
-        return <MemberView />;
+        // 🔹 Pass down onTabChange so MemberView can set activeTab
+        return <MemberView onTabChange={setActiveTab} />;
       case 'admin':
         return <AdminView />;
       default:
