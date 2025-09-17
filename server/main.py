@@ -17,16 +17,24 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# ✅ Enable CORS: allow from environment variable, fallback to localhost
-origins = os.getenv(
+# ✅ Load CORS origins from env
+raw_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,https://ai-dev-federation-dashboard.netlify.app"
-).split(",")
+    "http://localhost:5173,https://aidevfederationdashboard.netlify.app"
+)
 
+# Parse into list, stripping whitespace
+origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+# Optional: allow all origins for debugging
+if os.getenv("CORS_ALLOW_ALL", "false").lower() == "true":
+    origins = ["*"]
+
+print(f"🔧 CORS origins active: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in origins],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
