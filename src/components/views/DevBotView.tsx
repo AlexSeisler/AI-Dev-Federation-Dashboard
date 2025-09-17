@@ -79,64 +79,6 @@ export const DevBotView: React.FC = () => {
     };
   }, []);
 
-  const getToken = () => localStorage.getItem('access_token');
-  const refreshToken = async (expiredToken: string): Promise<string | null> => {
-    try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: expiredToken }),
-      });
-
-      if (!response.ok) {
-        console.error("Token refresh failed:", await response.text());
-        return null;
-      }
-
-      const data = await response.json();
-      localStorage.setItem("access_token", data.access_token);
-      console.log("🔄 Token refreshed");
-      return data.access_token;
-    } catch (err) {
-      console.error("Refresh request error:", err);
-      return null;
-    }
-  };
-
-  const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Response> => {
-    let token = getToken();
-    if (!token) throw new Error("No token available");
-
-    // Refresh if expired
-    if (isTokenExpired(token)) {
-      console.warn("JWT expired — refreshing before API call...");
-      const newToken = await refreshToken(token);
-      if (!newToken) throw new Error("Session expired, please log in again");
-      token = newToken;
-    }
-
-    const authHeaders = {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    };
-
-    const response = await fetch(url, { ...options, headers: authHeaders });
-
-    // Handle unauthorized → try refresh once
-    if (response.status === 401) {
-      console.warn("401 received — trying token refresh...");
-      const newToken = await refreshToken(token);
-      if (!newToken) throw new Error("Session expired, please log in again");
-
-      return fetch(url, {
-        ...options,
-        headers: { ...authHeaders, Authorization: `Bearer ${newToken}` },
-      });
-    }
-
-    return response;
-  };
-
   const validateInputs = (preset: string): string | null => {
     const presetConfig = taskPresets.find(p => p.id === preset);
     if (!presetConfig) return 'Invalid preset selected';
@@ -176,7 +118,7 @@ export const DevBotView: React.FC = () => {
 
   const startTask = async () => {
     if (!selectedPreset) {
-      setError('Please select a task preset');
+      setError("Please select a task preset");
       return;
     }
 
@@ -186,29 +128,22 @@ export const DevBotView: React.FC = () => {
       return;
     }
 
-    const token = getToken();
-    if (!token) {
-      setError('Authentication required. Please sign up or log in.');
-      return;
-    }
-
-    if (user?.status === 'pending') {
-      console.log('User is pending — running in demo mode.');
-    } else if (!user) {
-      setError('Authentication required. Please log in.');
+    // ✅ No tokens required — pending + approved users both run tasks
+    if (!user) {
+      setError("Authentication required. Please sign up or log in.");
       return;
     }
 
     setIsRunning(true);
-    setError('');
+    setError("");
     setLogs([]);
-    setOutput('');
+    setOutput("");
     setCurrentTask(null);
 
     try {
       const requestBody = buildRequestBody(selectedPreset);
-      
-      const response = await fetchWithAuth(`${API_URL}/tasks/run/${selectedPreset}`, {
+
+      const response = await fetch(`${API_URL}/tasks/run/${selectedPreset}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -218,7 +153,7 @@ export const DevBotView: React.FC = () => {
         if (response.status === 503 || response.status === 502) {
           setShowColdStartMessage(true);
           setTimeout(() => setShowColdStartMessage(false), 5000);
-          throw new Error('⚡ Backend waking up (cold start). Please retry in a few seconds.');
+          throw new Error("⚡ Backend waking up (cold start). Please retry in a few seconds.");
         }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
@@ -227,25 +162,14 @@ export const DevBotView: React.FC = () => {
       const data = await response.json();
       const taskId = data.task_id;
 
-      // ✅ Always fetch token fresh for SSE
+      // ✅ No token streaming
       streamTaskLogs(taskId);
-
     } catch (err) {
-      console.error('Task start failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start task');
+      console.error("Task start failed:", err);
+      setError(err instanceof Error ? err.message : "Failed to start task");
       setIsRunning(false);
     }
   };
-
-  function isTokenExpired(token: string): boolean {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.exp * 1000 < Date.now();
-    } catch (e) {
-      console.error("Invalid JWT:", e);
-      return true;
-    }
-  }
 
   const streamTaskLogs = async (taskId: number) => {
     setOutput("");
@@ -253,25 +177,8 @@ export const DevBotView: React.FC = () => {
       eventSourceRef.current.close();
     }
 
-    let token = getToken();
-    if (!token) {
-      setError("No token available. Please log in again.");
-      setIsRunning(false);
-      return;
-    }
-
-    if (isTokenExpired(token)) {
-      console.warn("JWT expired — attempting refresh...");
-      const newToken = await refreshToken(token);
-      if (!newToken) {
-        setError("Session expired. Please log in again.");
-        setIsRunning(false);
-        return;
-      }
-      token = newToken;
-    }
-
-    const eventSource = new EventSource(`${API_URL}/tasks/${taskId}/stream?token=${token}`);
+    // ✅ Direct SSE — no token query param
+    const eventSource = new EventSource(`${API_URL}/tasks/${taskId}/stream`);
     eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {
@@ -303,27 +210,23 @@ export const DevBotView: React.FC = () => {
 
   const fetchTaskResult = async (taskId: number) => {
     try {
-      const response = await fetchWithAuth(`${API_URL}/tasks/${taskId}`);
+      const response = await fetch(`${API_URL}/tasks/${taskId}`);
       if (response.ok) {
         const task = await response.json();
         setCurrentTask(task);
         setLogs(task.logs || []);
-        
-        // Store last result for quick replay
+
+        // Store last result for replay
         if (task.output) {
           setLastTaskResult(task.output);
-        }
-
-        // ✅ Use full response from backend
-        if (task.output) {
           setOutput(task.output);
         } else {
-          // fallback for old tasks
+          // Fallback: extract last HF Response log
           const outputLog = [...(task.logs || [])].reverse().find(
-            (log: LogEntry) => log.event.includes('HF Response:')
+            (log: LogEntry) => log.event.includes("HF Response:")
           );
           if (outputLog) {
-            const clean = outputLog.event.split('HF Response:')[1]?.trim();
+            const clean = outputLog.event.split("HF Response:")[1]?.trim();
             setOutput(clean || outputLog.event);
           }
         }
@@ -331,7 +234,7 @@ export const DevBotView: React.FC = () => {
         setIsRunning(false);
       }
     } catch (err) {
-      console.error('Failed to fetch task result:', err);
+      console.error("Failed to fetch task result:", err);
       setIsRunning(false);
     }
   };
@@ -604,7 +507,6 @@ export const DevBotView: React.FC = () => {
                 )}
               </div>
             </div>
-            </div>
 
             {/* Last Task Results */}
             {lastTaskResult && (
@@ -656,5 +558,6 @@ export const DevBotView: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
   );
 };
