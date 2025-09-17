@@ -25,8 +25,6 @@ origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()
 if os.getenv("CORS_ALLOW_ALL", "false").lower() == "true":
     origins = ["*"]
 
-print("🔧 CORS_ORIGINS raw from env:", raw_origins)
-print("🔧 CORS_ORIGINS parsed list:", origins)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,7 +33,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-print("✅ CORS middleware applied")
 
 # ✅ Setup logging to the same debug.log file
 logging.basicConfig(
