@@ -39,7 +39,7 @@ export const MemberView: React.FC = () => {
                   >
                     <Bot className="w-5 h-5" />
                     Continue as Guest - Try DevBot
-                  </button>
+                    <feature.icon className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 mx-auto mb-3" />
                 </div>
                 <div className="text-orange-300 text-sm">
                   Check back soon or contact an administrator
