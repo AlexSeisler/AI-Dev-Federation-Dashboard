@@ -9,9 +9,34 @@ export const AuthForms: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Simple email regex for validation
+  const validateEmail = (value: string) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(value);
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (!value) {
+      setEmailError('Email is required');
+    } else if (!validateEmail(value)) {
+      setEmailError('Please enter a valid email address');
+    } else {
+      setEmailError(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 🚫 Block invalid emails before hitting backend
+    if (emailError || !validateEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
     setIsLoading(true);
     setMessage(null);
 
@@ -30,7 +55,7 @@ export const AuthForms: React.FC = () => {
         setPassword('');
       }
     } catch (error: any) {
-      console.error("Auth error:", error);
+      console.error('Auth error:', error);
       setMessage({
         type: 'error',
         text: error?.message || 'Unexpected error during authentication',
@@ -85,22 +110,21 @@ export const AuthForms: React.FC = () => {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-h-[48px]"
+                  onChange={(e) => handleEmailChange(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 bg-slate-700/50 border ${
+                    emailError ? 'border-red-500' : 'border-slate-600'
+                  } rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                    emailError
+                      ? 'focus:ring-red-500 focus:border-red-500'
+                      : 'focus:ring-blue-500 focus:border-transparent'
+                  } transition-all duration-200 min-h-[48px]`}
                   placeholder="Enter your email"
                   required
-                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-                  title="Please enter a valid email address (example: user@example.com)"
-                  onInvalid={(e) =>
-                    (e.target as HTMLInputElement).setCustomValidity(
-                      "Enter a valid email address (example: user@example.com)"
-                    )
-                  }
-                  onInput={(e) =>
-                    (e.target as HTMLInputElement).setCustomValidity("")
-                  }
                 />
               </div>
+              {emailError && (
+                <p className="mt-2 text-sm text-red-400">{emailError}</p>
+              )}
             </div>
 
             <div>
@@ -123,9 +147,9 @@ export const AuthForms: React.FC = () => {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !!emailError}
               className={`w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 min-h-[48px] ${
-                isLoading
+                isLoading || emailError
                   ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
                   : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/20'
               }`}
@@ -148,6 +172,7 @@ export const AuthForms: React.FC = () => {
                 setMessage(null);
                 setEmail('');
                 setPassword('');
+                setEmailError(null);
               }}
               className="text-blue-400 hover:text-blue-300 text-sm transition-colors duration-200"
             >
