@@ -3,7 +3,7 @@ services:
     name: ai-dev-federation-backend
     env: docker
     plan: free
-    dockerContext: ./server       # context is the /server folder
+    dockerContext: ./server
     dockerfilePath: ./server/Dockerfile
     envVars:
       - key: DATABASE_URL
